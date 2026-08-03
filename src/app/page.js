@@ -44,7 +44,7 @@ function angleToValue(angle) {
 export default function Darkroom() {
   const [images, setImages] = useState([]);
   const [activeId, setActiveId] = useState(null);
-  
+
   // Refs for DOM elements that need direct interaction
   const fileInputRef = useRef(null);
   const dialSvgRef = useRef(null);
@@ -69,7 +69,7 @@ export default function Darkroom() {
       const id = Date.now() + Math.random();
       const url = URL.createObjectURL(file);
       const img = new Image();
-      
+
       img.onload = () => {
         const defaultFormat = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpeg";
         const newObj = {
@@ -86,13 +86,13 @@ export default function Darkroom() {
           compressedURL: null,
           compressedSize: 0,
         };
-        
+
         setImages((prev) => {
           const updated = [...prev, newObj];
           if (updated.length === 1) setActiveId(id);
           return updated;
         });
-        
+
         // Trigger initial compression
         forceRecompress(newObj);
       };
@@ -106,21 +106,21 @@ export default function Darkroom() {
       const canvas = document.createElement("canvas");
       let w = obj.img.naturalWidth;
       let h = obj.img.naturalHeight;
-      
+
       if (obj.resizeEnabled && obj.targetWidth > 0) {
         const aspect = h / w;
         w = obj.targetWidth;
         h = Math.round(w * aspect);
       }
-      
+
       canvas.width = w;
       canvas.height = h;
       const ctx = canvas.getContext("2d");
       ctx.drawImage(obj.img, 0, 0, w, h);
-      
+
       const mime = "image/" + obj.format;
       const qualityParam = obj.format === "png" ? undefined : obj.quality / 100;
-      
+
       canvas.toBlob((blob) => {
         if (!blob) { resolve(obj); return; }
         if (obj.compressedURL) URL.revokeObjectURL(obj.compressedURL);
@@ -160,7 +160,7 @@ export default function Darkroom() {
     const obj = images[idx];
     URL.revokeObjectURL(obj.originalURL);
     if (obj.compressedURL) URL.revokeObjectURL(obj.compressedURL);
-    
+
     const newImages = images.filter((i) => i.id !== id);
     setImages(newImages);
     if (activeId === id) {
@@ -219,7 +219,7 @@ export default function Darkroom() {
         zip.file(stripExt(o.name) + "-compressed." + extFor(o.format), o.compressedBlob);
       }
     });
-    
+
     const content = await zip.generateAsync({ type: "blob" });
     const url = URL.createObjectURL(content);
     const a = document.createElement("a");
@@ -229,7 +229,7 @@ export default function Darkroom() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    
+
     btn.textContent = originalText;
     btn.disabled = false;
   };
@@ -295,8 +295,8 @@ export default function Darkroom() {
   };
 
   // --- Render Helpers ---
-  const savingsPct = activeImage && activeImage.compressedSize 
-    ? ((activeImage.originalSize - activeImage.compressedSize) / activeImage.originalSize) * 100 
+  const savingsPct = activeImage && activeImage.compressedSize
+    ? ((activeImage.originalSize - activeImage.compressedSize) / activeImage.originalSize) * 100
     : 0;
   const isGoodSavings = savingsPct >= 0;
 
@@ -308,10 +308,10 @@ export default function Darkroom() {
         <p>Develop leaner photos without leaving your browser. Drop in JPEGs, PNGs, or WebPs and dial in the exposure — nothing ever leaves your machine.</p>
       </div>
 
-      <div 
-        className="dropzone" 
-        tabIndex="0" 
-        role="button" 
+      <div
+        className="dropzone"
+        tabIndex="0"
+        role="button"
         onClick={() => fileInputRef.current.click()}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current.click(); } }}
         onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('dragover'); }}
@@ -323,7 +323,7 @@ export default function Darkroom() {
         }}
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M4 8V6a2 2 0 0 1 2-2h1l1.5-2h7L17 4h1a2 2 0 0 1 2 2v2"/><path d="M2 8h20v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"/><circle cx="12" cy="14" r="4"/>
+          <path d="M4 8V6a2 2 0 0 1 2-2h1l1.5-2h7L17 4h1a2 2 0 0 1 2 2v2" /><path d="M2 8h20v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" /><circle cx="12" cy="14" r="4" />
         </svg>
         <p className="dropzone-title">Drag photos here, or click to load</p>
         <p className="dropzone-sub">Batch-friendly · <strong>JPEG · PNG · WebP</strong></p>
@@ -349,8 +349,8 @@ export default function Darkroom() {
           {activeImage && (
             <div className="workbench">
               <div className="compare-panel">
-                <div 
-                  className="compare-wrap" 
+                <div
+                  className="compare-wrap"
                   ref={compareWrapRef}
                   onPointerDown={handleComparePointerDown}
                   onPointerMove={handleComparePointerMove}
@@ -374,8 +374,8 @@ export default function Darkroom() {
                   <span className="control-label">Output format</span>
                   <div className="format-chips">
                     {['jpeg', 'webp', 'png'].map((fmt) => (
-                      <button 
-                        key={fmt} 
+                      <button
+                        key={fmt}
                         className={`chip ${activeImage.format === fmt ? 'active' : ''}`}
                         onClick={() => updateActiveImage({ format: fmt })}
                       >
@@ -388,14 +388,14 @@ export default function Darkroom() {
                 <div className={`control-block qualityblock ${activeImage.format === 'png' ? 'is-disabled' : ''}`}>
                   <span className="control-label">Exposure (quality)</span>
                   <div className="dial-wrap">
-                    <svg 
-                      ref={dialSvgRef} 
-                      className="dial-svg" 
-                      viewBox="0 0 200 200" 
-                      role="slider" 
+                    <svg
+                      ref={dialSvgRef}
+                      className="dial-svg"
+                      viewBox="0 0 200 200"
+                      role="slider"
                       tabIndex={activeImage.format === 'png' ? -1 : 0}
-                      aria-valuemin="1" 
-                      aria-valuemax="100" 
+                      aria-valuemin="1"
+                      aria-valuemax="100"
                       aria-valuenow={activeImage.quality}
                       onPointerDown={handleDialPointerDown}
                       onPointerMove={handleDialPointerMove}
@@ -414,21 +414,44 @@ export default function Darkroom() {
 
                 <div className="control-block">
                   <label className="checkbox-row">
-                    <input type="checkbox" checked={activeImage.resizeEnabled} onChange={(e) => updateActiveImage({ resizeEnabled: e.target.checked })} />
+                    <input
+                      type="checkbox"
+                      checked={activeImage.resizeEnabled}
+                      onChange={(e) => updateActiveImage({ resizeEnabled: e.target.checked })}
+                    />
                     <span>Resize before compressing</span>
                   </label>
+
                   <div className={`resize-inputs ${activeImage.resizeEnabled ? 'open' : ''}`}>
-                    <label>Max width (px)
-                      <input 
-                        type="number" 
-                        min="10" step="10" 
-                        value={activeImage.targetWidth} 
-                        onChange={(e) => updateActiveImage({ targetWidth: Math.max(10, parseInt(e.target.value) || activeImage.img.naturalWidth) })} 
-                      />
-                    </label>
-                    <span className="resize-linked">
-                       {activeImage.targetWidth} × {Math.round(activeImage.targetWidth * (activeImage.img.naturalHeight / activeImage.img.naturalWidth))}px
-                    </span>
+                    <div className="resize-inputs-inner">
+                      <label className="resize-label">Max width (px)</label>
+                      <div className="input-with-dims">
+                        <input
+                          type="number"
+                          min="10"
+                          step="10"
+                          value={activeImage.targetWidth}
+                          onChange={(e) => updateActiveImage({ targetWidth: Math.max(10, parseInt(e.target.value) || activeImage.img.naturalWidth) })}
+                        />
+                        <span className="resize-linked">
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="m18 8 4 4-4 4" />
+                            <path d="M22 12H2" />
+                            <path d="m6 8-4 4 4 4" />
+                          </svg>
+                          {activeImage.targetWidth} × {Math.round(activeImage.targetWidth * (activeImage.img.naturalHeight / activeImage.img.naturalWidth))}px
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -442,8 +465,8 @@ export default function Darkroom() {
                     </strong>
                   </div>
                   <div className="bar-compare">
-                    <div 
-                      className={`bar-compressed ${!isGoodSavings ? 'warn' : ''}`} 
+                    <div
+                      className={`bar-compressed ${!isGoodSavings ? 'warn' : ''}`}
                       style={{ width: activeImage.compressedSize ? Math.min(100, (activeImage.compressedSize / activeImage.originalSize) * 100) + '%' : '0%' }}
                     ></div>
                   </div>
