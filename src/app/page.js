@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import JSZip from "jszip";
-import "./globals.css"; // Ensure your CSS is imported
+import "./globals.css";
 
-// --- Math & Helper Functions for the Dial ---
 const START_ANGLE = 135;
 const SWEEP = 270;
 const CX = 100, CY = 100, R = 80;
@@ -45,7 +44,6 @@ export default function Darkroom() {
   const [images, setImages] = useState([]);
   const [activeId, setActiveId] = useState(null);
 
-  // Refs for DOM elements that need direct interaction
   const fileInputRef = useRef(null);
   const dialSvgRef = useRef(null);
   const compareWrapRef = useRef(null);
@@ -54,7 +52,6 @@ export default function Darkroom() {
 
   const activeImage = images.find((i) => i.id === activeId) || null;
 
-  // --- Format Helpers ---
   const fmtKB = (bytes) => (bytes / 1024).toFixed(1) + " KB";
   const extFor = (format) => (format === "jpeg" ? "jpg" : format);
   const stripExt = (name) => {
@@ -62,7 +59,6 @@ export default function Darkroom() {
     return idx > -1 ? name.slice(0, idx) : name;
   };
 
-  // --- File Upload & Initialization ---
   const addFiles = (fileList) => {
     const files = Array.from(fileList).filter((f) => f.type.startsWith("image/"));
     files.forEach((file) => {
@@ -82,6 +78,8 @@ export default function Darkroom() {
           quality: 75,
           resizeEnabled: false,
           targetWidth: img.naturalWidth,
+          targetHeight: img.naturalHeight,
+          lockAspect: true,
           compressedBlob: null,
           compressedURL: null,
           compressedSize: 0,
@@ -93,24 +91,21 @@ export default function Darkroom() {
           return updated;
         });
 
-        // Trigger initial compression
         forceRecompress(newObj);
       };
       img.src = url;
     });
   };
 
-  // --- Image Compression Logic (Canvas) ---
   const compressImage = (obj) => {
     return new Promise((resolve) => {
       const canvas = document.createElement("canvas");
       let w = obj.img.naturalWidth;
       let h = obj.img.naturalHeight;
 
-      if (obj.resizeEnabled && obj.targetWidth > 0) {
-        const aspect = h / w;
+      if (obj.resizeEnabled && obj.targetWidth > 0 && obj.targetHeight > 0) {
         w = obj.targetWidth;
-        h = Math.round(w * aspect);
+        h = obj.targetHeight;
       }
 
       canvas.width = w;
@@ -140,15 +135,19 @@ export default function Darkroom() {
     setImages((prev) => prev.map((img) => (img.id === obj.id ? updatedObj : img)));
   };
 
-  // Debounced Recompression using useEffect
   useEffect(() => {
     if (!activeImage) return;
     const timer = setTimeout(() => forceRecompress(activeImage), 120);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeImage?.quality, activeImage?.format, activeImage?.resizeEnabled, activeImage?.targetWidth]);
+  }, [
+    activeImage?.quality,
+    activeImage?.format,
+    activeImage?.resizeEnabled,
+    activeImage?.targetWidth,
+    activeImage?.targetHeight,
+  ]);
 
-  // --- Handlers ---
   const updateActiveImage = (updates) => {
     setImages((prev) => prev.map((img) => (img.id === activeId ? { ...img, ...updates } : img)));
   };
@@ -199,6 +198,8 @@ export default function Darkroom() {
           quality: activeImage.quality,
           resizeEnabled: activeImage.resizeEnabled,
           targetWidth: activeImage.targetWidth,
+          targetHeight: activeImage.targetHeight,
+          lockAspect: activeImage.lockAspect,
         });
       }
     }
@@ -213,7 +214,6 @@ export default function Darkroom() {
     btn.disabled = true;
 
     const zip = new JSZip();
-    // Ensure all are compressed (they usually are by state, but just in case)
     images.forEach((o) => {
       if (o.compressedBlob) {
         zip.file(stripExt(o.name) + "-compressed." + extFor(o.format), o.compressedBlob);
@@ -234,7 +234,6 @@ export default function Darkroom() {
     btn.disabled = false;
   };
 
-  // --- Custom Dial Pointer Logic ---
   const angleFromPointer = (clientX, clientY) => {
     if (!dialSvgRef.current) return 0;
     const rect = dialSvgRef.current.getBoundingClientRect();
@@ -272,7 +271,28 @@ export default function Darkroom() {
     updateActiveImage({ quality: Math.max(1, Math.min(100, v)) });
   };
 
-  // --- Compare Slider Logic ---
+  const handleWidthChange = (e) => {
+    const newWidth = Math.max(10, parseInt(e.target.value, 10) || activeImage.img.naturalWidth);
+    if (activeImage.lockAspect) {
+      const aspect = activeImage.img.naturalHeight / activeImage.img.naturalWidth;
+      updateActiveImage({ targetWidth: newWidth, targetHeight: Math.round(newWidth * aspect) });
+    } else {
+      updateActiveImage({ targetWidth: newWidth });
+    }
+  };
+
+  const handleHeightChange = (e) => {
+    const newHeight = Math.max(10, parseInt(e.target.value, 10) || activeImage.img.naturalHeight);
+    if (activeImage.lockAspect) {
+      const aspect = activeImage.img.naturalWidth / activeImage.img.naturalHeight;
+      updateActiveImage({ targetHeight: newHeight, targetWidth: Math.round(newHeight * aspect) });
+    } else {
+      updateActiveImage({ targetHeight: newHeight });
+    }
+  };
+
+  const toggleLockAspect = () => updateActiveImage({ lockAspect: !activeImage.lockAspect });
+
   const setComparePos = (clientX) => {
     if (!compareWrapRef.current) return;
     const rect = compareWrapRef.current.getBoundingClientRect();
@@ -294,7 +314,6 @@ export default function Darkroom() {
     e.currentTarget.releasePointerCapture(e.pointerId);
   };
 
-  // --- Render Helpers ---
   const savingsPct = activeImage && activeImage.compressedSize
     ? ((activeImage.originalSize - activeImage.compressedSize) / activeImage.originalSize) * 100
     : 0;
@@ -313,12 +332,12 @@ export default function Darkroom() {
         tabIndex="0"
         role="button"
         onClick={() => fileInputRef.current.click()}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current.click(); } }}
-        onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('dragover'); }}
-        onDragLeave={(e) => { e.preventDefault(); e.currentTarget.classList.remove('dragover'); }}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInputRef.current.click(); } }}
+        onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("dragover"); }}
+        onDragLeave={(e) => { e.preventDefault(); e.currentTarget.classList.remove("dragover"); }}
         onDrop={(e) => {
           e.preventDefault();
-          e.currentTarget.classList.remove('dragover');
+          e.currentTarget.classList.remove("dragover");
           if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
         }}
       >
@@ -336,7 +355,7 @@ export default function Darkroom() {
             <div className="filmstrip-wrap">
               <div className="filmstrip">
                 {images.map((obj) => (
-                  <div key={obj.id} className={`thumb ${obj.id === activeId ? 'active' : ''}`} onClick={() => setActiveId(obj.id)}>
+                  <div key={obj.id} className={`thumb ${obj.id === activeId ? "active" : ""}`} onClick={() => setActiveId(obj.id)}>
                     <img src={obj.originalURL} alt={obj.name} />
                     <button className="thumb-remove" onClick={(e) => removeImage(obj.id, e)}>×</button>
                   </div>
@@ -365,7 +384,7 @@ export default function Darkroom() {
                 </div>
                 <p className="dims-readout">
                   {activeImage.img.naturalWidth}×{activeImage.img.naturalHeight} original → {activeImage.resizeEnabled ? activeImage.targetWidth : activeImage.img.naturalWidth}×
-                  {activeImage.resizeEnabled ? Math.round(activeImage.targetWidth * (activeImage.img.naturalHeight / activeImage.img.naturalWidth)) : activeImage.img.naturalHeight} output · {activeImage.format.toUpperCase()}
+                  {activeImage.resizeEnabled ? activeImage.targetHeight : activeImage.img.naturalHeight} output · {activeImage.format.toUpperCase()}
                 </p>
               </div>
 
@@ -373,10 +392,10 @@ export default function Darkroom() {
                 <div className="control-block">
                   <span className="control-label">Output format</span>
                   <div className="format-chips">
-                    {['jpeg', 'webp', 'png'].map((fmt) => (
+                    {["jpeg", "webp", "png"].map((fmt) => (
                       <button
                         key={fmt}
-                        className={`chip ${activeImage.format === fmt ? 'active' : ''}`}
+                        className={`chip ${activeImage.format === fmt ? "active" : ""}`}
                         onClick={() => updateActiveImage({ format: fmt })}
                       >
                         {fmt.toUpperCase()}
@@ -385,7 +404,7 @@ export default function Darkroom() {
                   </div>
                 </div>
 
-                <div className={`control-block qualityblock ${activeImage.format === 'png' ? 'is-disabled' : ''}`}>
+                <div className={`control-block qualityblock ${activeImage.format === "png" ? "is-disabled" : ""}`}>
                   <span className="control-label">Exposure (quality)</span>
                   <div className="dial-wrap">
                     <svg
@@ -393,7 +412,7 @@ export default function Darkroom() {
                       className="dial-svg"
                       viewBox="0 0 200 200"
                       role="slider"
-                      tabIndex={activeImage.format === 'png' ? -1 : 0}
+                      tabIndex={activeImage.format === "png" ? -1 : 0}
                       aria-valuemin="1"
                       aria-valuemax="100"
                       aria-valuenow={activeImage.quality}
@@ -422,52 +441,58 @@ export default function Darkroom() {
                     <span>Resize before compressing</span>
                   </label>
 
-                  <div className={`resize-inputs ${activeImage.resizeEnabled ? 'open' : ''}`}>
+                  <div className={`resize-inputs ${activeImage.resizeEnabled ? "open" : ""}`}>
                     <div className="resize-inputs-inner">
-                      <label className="resize-label">Max width (px)</label>
-                      <div className="input-with-dims">
-                        <input
-                          type="number"
-                          min="10"
-                          step="10"
-                          value={activeImage.targetWidth}
-                          onChange={(e) => updateActiveImage({ targetWidth: Math.max(10, parseInt(e.target.value) || activeImage.img.naturalWidth) })}
-                        />
-                        <span className="resize-linked">
-                          <svg
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="m18 8 4 4-4 4" />
-                            <path d="M22 12H2" />
-                            <path d="m6 8-4 4 4 4" />
+                      <div className="dim-field">
+                        <label className="resize-label">Width (px)</label>
+                        <input type="number" min="10" step="10" value={activeImage.targetWidth} onChange={handleWidthChange} />
+                      </div>
+
+                      <button
+                        type="button"
+                        className={`lock-toggle ${activeImage.lockAspect ? "locked" : ""}`}
+                        onClick={toggleLockAspect}
+                        aria-label={activeImage.lockAspect ? "Unlock aspect ratio" : "Lock aspect ratio"}
+                        title={activeImage.lockAspect ? "Aspect ratio locked" : "Aspect ratio unlocked — sizes are independent"}
+                      >
+                        {activeImage.lockAspect ? (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
                           </svg>
-                          {activeImage.targetWidth} × {Math.round(activeImage.targetWidth * (activeImage.img.naturalHeight / activeImage.img.naturalWidth))}px
-                        </span>
+                        ) : (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                          </svg>
+                        )}
+                      </button>
+
+                      <div className="dim-field">
+                        <label className="resize-label">Height (px)</label>
+                        <input type="number" min="10" step="10" value={activeImage.targetHeight} onChange={handleHeightChange} />
                       </div>
                     </div>
+
+                    {!activeImage.lockAspect && (
+                      <p className="hint" style={{ display: "block", marginTop: "8px" }}>
+                        Unlocked — width and height resize independently and may stretch the image.
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 <div className="stats-block" aria-live="polite">
                   <div className="stat"><span>Original</span><strong>{fmtKB(activeImage.originalSize)}</strong></div>
-                  <div className="stat"><span>Compressed</span><strong>{activeImage.compressedSize ? fmtKB(activeImage.compressedSize) : '—'}</strong></div>
+                  <div className="stat"><span>Compressed</span><strong>{activeImage.compressedSize ? fmtKB(activeImage.compressedSize) : "—"}</strong></div>
                   <div className="stat stat-savings">
                     <span>Change</span>
-                    <strong className={isGoodSavings ? 'good' : 'warn'}>
-                      {activeImage.compressedSize ? (isGoodSavings ? '−' : '+') + Math.abs(savingsPct).toFixed(0) + '%' : '—'}
+                    <strong className={isGoodSavings ? "good" : "warn"}>
+                      {activeImage.compressedSize ? (isGoodSavings ? "−" : "+") + Math.abs(savingsPct).toFixed(0) + "%" : "—"}
                     </strong>
                   </div>
                   <div className="bar-compare">
                     <div
-                      className={`bar-compressed ${!isGoodSavings ? 'warn' : ''}`}
-                      style={{ width: activeImage.compressedSize ? Math.min(100, (activeImage.compressedSize / activeImage.originalSize) * 100) + '%' : '0%' }}
+                      className={`bar-compressed ${!isGoodSavings ? "warn" : ""}`}
+                      style={{ width: activeImage.compressedSize ? Math.min(100, (activeImage.compressedSize / activeImage.originalSize) * 100) + "%" : "0%" }}
                     ></div>
                   </div>
                 </div>
