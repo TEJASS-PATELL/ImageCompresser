@@ -605,6 +605,7 @@ body {
   background: var(--bg-panel-raised);
   border-radius: 10px;
   padding: 16px;
+  border: 1px solid var(--border);
   row-gap: 12px;
   column-gap: 40px;
   display: grid;
