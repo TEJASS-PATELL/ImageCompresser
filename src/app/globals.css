@@ -227,6 +227,7 @@ body {
   border-radius: var(--radius);
   padding: 18px;
   width: 540px;
+  border: 2px dashed var(--border);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -321,6 +322,7 @@ body {
   background: var(--bg-panel);
   border-radius: var(--radius);
   padding: 20px;
+  border: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: 20px;
