@@ -43,6 +43,7 @@ function angleToValue(angle) {
 export default function Darkroom() {
   const [images, setImages] = useState([]);
   const [activeId, setActiveId] = useState(null);
+  const [theme, setTheme] = useState("dark");
 
   const fileInputRef = useRef(null);
   const dialSvgRef = useRef(null);
@@ -320,263 +321,260 @@ export default function Darkroom() {
   const isGoodSavings = savingsPct >= 0;
 
   return (
-    <div className="page">
-      <div className="hero">
-        <p className="eyebrow">Local · Private · Instant</p>
-        <h1>Darkroom</h1>
-        <p>Develop leaner photos without leaving your browser. Drop in JPEGs, PNGs, or WebPs and dial in the exposure — nothing ever leaves your machine.</p>
-      </div>
+    <div data-theme={theme}>
 
-      <div
-        className="dropzone"
-        tabIndex="0"
-        role="button"
-        onClick={() => fileInputRef.current.click()}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInputRef.current.click(); } }}
-        onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("dragover"); }}
-        onDragLeave={(e) => { e.preventDefault(); e.currentTarget.classList.remove("dragover"); }}
-        onDrop={(e) => {
-          e.preventDefault();
-          e.currentTarget.classList.remove("dragover");
-          if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
-        }}
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M4 8V6a2 2 0 0 1 2-2h1l1.5-2h7L17 4h1a2 2 0 0 1 2 2v2" /><path d="M2 8h20v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" /><circle cx="12" cy="14" r="4" />
-        </svg>
-        <p className="dropzone-title">Drag photos here, or click to load</p>
-        <p className="dropzone-sub">Batch-friendly · <strong>JPEG · PNG · WebP</strong></p>
-        <input type="file" ref={fileInputRef} accept="image/*" multiple hidden onChange={(e) => addFiles(e.target.files)} />
-      </div>
-
-      {images.length > 0 && (
-        <>
-          <div className="filmstrip-section">
-            <div className="filmstrip-wrap">
-              <div className="filmstrip">
-                {images.map((obj) => (
-                  <div key={obj.id} className={`thumb ${obj.id === activeId ? "active" : ""}`} onClick={() => setActiveId(obj.id)}>
-                    <img src={obj.originalURL} alt={obj.name} />
-                    <button className="thumb-remove" onClick={(e) => removeImage(obj.id, e)}>×</button>
-                  </div>
-                ))}
-                <button className="thumb-add" onClick={() => fileInputRef.current.click()}>+</button>
-              </div>
-            </div>
-          </div>
-
-          {activeImage && (
-            <div className="workbench">
-              <div className="compare-panel">
-                <div
-                  className="compare-wrap"
-                  ref={compareWrapRef}
-                  onPointerDown={handleComparePointerDown}
-                  onPointerMove={handleComparePointerMove}
-                  onPointerUp={handleComparePointerUp}
-                  onPointerCancel={handleComparePointerUp}
-                >
-                  <img className="img-before" src={activeImage.originalURL} alt="Original" />
-                  <img className="img-after" src={activeImage.compressedURL || activeImage.originalURL} alt="Compressed" />
-                  <div className="compare-handle"></div>
-                  <span className="tag tag-before">Before</span>
-                  <span className="tag tag-after">After</span>
-                </div>
-                <p className="dims-readout">
-                  {activeImage.img.naturalWidth}×{activeImage.img.naturalHeight} original → {activeImage.resizeEnabled ? activeImage.targetWidth : activeImage.img.naturalWidth}×
-                  {activeImage.resizeEnabled ? activeImage.targetHeight : activeImage.img.naturalHeight} output · {activeImage.format.toUpperCase()}
-                </p>
-              </div>
-
-              <div className="controls-panel">
-                <div className="control-block">
-                  <span className="control-label">Output format</span>
-                  <div className="format-chips">
-                    {["jpeg", "webp", "png"].map((fmt) => (
-                      <button
-                        key={fmt}
-                        className={`chip ${activeImage.format === fmt ? "active" : ""}`}
-                        onClick={() => updateActiveImage({ format: fmt })}
-                      >
-                        {fmt.toUpperCase()}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className={`control-block qualityblock ${activeImage.format === "png" ? "is-disabled" : ""}`}>
-                  <span className="control-label">Exposure (quality)</span>
-                  <div className="dial-wrap">
-                    <svg
-                      ref={dialSvgRef}
-                      className="dial-svg"
-                      viewBox="0 0 200 200"
-                      role="slider"
-                      tabIndex={activeImage.format === "png" ? -1 : 0}
-                      aria-valuemin="1"
-                      aria-valuemax="100"
-                      aria-valuenow={activeImage.quality}
-                      onPointerDown={handleDialPointerDown}
-                      onPointerMove={handleDialPointerMove}
-                      onPointerUp={handleDialPointerUp}
-                      onPointerCancel={handleDialPointerUp}
-                      onKeyDown={handleDialKeyDown}
-                    >
-                      <path className="dial-track" d={describeArc(START_ANGLE, START_ANGLE + SWEEP)} />
-                      <path className="dial-progress" d={describeArc(START_ANGLE, valueToAngle(activeImage.quality))} />
-                      <circle className="dial-knob" cx={polarToXY(valueToAngle(activeImage.quality)).x} cy={polarToXY(valueToAngle(activeImage.quality)).y} r="8" />
-                    </svg>
-                    <div className="dial-readout"><strong>{activeImage.quality}</strong><span>%</span></div>
-                  </div>
-                  <p className="hint">PNG is lossless — file size only changes with resizing.</p>
-                </div>
-
-                <div className="control-block">
-                  <label className="checkbox-row">
-                    <input
-                      type="checkbox"
-                      checked={activeImage.resizeEnabled}
-                      onChange={(e) => updateActiveImage({ resizeEnabled: e.target.checked })}
-                    />
-                    <span>Resize before compressing</span>
-                  </label>
-
-                  <div className={`resize-inputs ${activeImage.resizeEnabled ? "open" : ""}`}>
-                    <div className="resize-inputs-inner">
-                      <div className="dim-field">
-                        <label className="resize-label">Width (px)</label>
-                        <input type="number" min="10" step="10" value={activeImage.targetWidth} onChange={handleWidthChange} />
-                      </div>
-
-                      <button
-                        type="button"
-                        className={`lock-toggle ${activeImage.lockAspect ? "locked" : ""}`}
-                        onClick={toggleLockAspect}
-                        aria-label={activeImage.lockAspect ? "Unlock aspect ratio" : "Lock aspect ratio"}
-                        title={activeImage.lockAspect ? "Aspect ratio locked" : "Aspect ratio unlocked — sizes are independent"}
-                      >
-                        {activeImage.lockAspect ? (
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                          </svg>
-                        ) : (
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 9.9-1" />
-                          </svg>
-                        )}
-                      </button>
-
-                      <div className="dim-field">
-                        <label className="resize-label">Height (px)</label>
-                        <input type="number" min="10" step="10" value={activeImage.targetHeight} onChange={handleHeightChange} />
-                      </div>
-                    </div>
-
-                    {!activeImage.lockAspect && (
-                      <p className="hint" style={{ display: "block", marginTop: "8px" }}>
-                        Unlocked — width and height resize independently and may stretch the image.
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="stats-block" aria-live="polite">
-                  <div className="stat"><span>Original</span><strong>{fmtKB(activeImage.originalSize)}</strong></div>
-                  <div className="stat"><span>Compressed</span><strong>{activeImage.compressedSize ? fmtKB(activeImage.compressedSize) : "—"}</strong></div>
-                  <div className="stat stat-savings">
-                    <span>Change</span>
-                    <strong className={isGoodSavings ? "good" : "warn"}>
-                      {activeImage.compressedSize ? (isGoodSavings ? "−" : "+") + Math.abs(savingsPct).toFixed(0) + "%" : "—"}
-                    </strong>
-                  </div>
-                  <div className="bar-compare">
-                    <div
-                      className={`bar-compressed ${!isGoodSavings ? "warn" : ""}`}
-                      style={{ width: activeImage.compressedSize ? Math.min(100, (activeImage.compressedSize / activeImage.originalSize) * 100) + "%" : "0%" }}
-                    ></div>
-                  </div>
-                </div>
-
-                <div className="action-row">
-                  <button className="btn btn-primary" onClick={() => download(activeImage)}>Download</button>
-                  <button className="btn btn-ghost" onClick={applyAll}>Apply to all</button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="global-actions">
-            <button className="btn btn-primary" onClick={downloadAll}>Download all (.zip)</button>
-            <button className="btn btn-danger" onClick={clearAll}>Clear all</button>
-          </div>
-        </>
-      )}
-
-      <footer className="footer">
-        <div className="footer-container">
-          {/* Privacy Badge */}
-          <p className="footer-privacy">
-            <svg className="privacy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-            </svg>
-            <strong>100% Privacy</strong> All processing happens on-device via <strong>Canvas API.</strong> No files are ever uploaded.
-          </p>
-
-          {/* Share Section */}
-          <div className="footer-share">
-            <span className="share-label">Share this tool</span>
-            <div className="share-buttons">
-              {/* X / Twitter */}
-              <a
-                href="https://twitter.com/intent/tweet?text=Check%20out%20this%20awesome%20tool!"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="share-btn twitter"
-                aria-label="Share on X"
-              >
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                </svg>
-              </a>
-
-              {/* LinkedIn */}
-              <a
-                href="https://www.linkedin.com/sharing/share-offsite/?url=YOUR_URL"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="share-btn linkedin"
-                aria-label="Share on LinkedIn"
-              >
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z" />
-                </svg>
-              </a>
-
-              {/* WhatsApp */}
-              <a
-                href="https://api.whatsapp.com/send?text=Check%20out%20this%20tool!"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="share-btn whatsapp"
-                aria-label="Share on WhatsApp"
-              >
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.32a8.188 8.188 0 0 1-1.26-4.38c.01-4.54 3.71-8.24 8.26-8.24" />
-                </svg>
-              </a>
-            </div>
-          </div>
-
-          {/* Creator Credits */}
-          <div className="footer-credits">
-            <span>Crafted with <span className="heart">♥</span> by </span>
-            <a href="https://github.com/TEJASS-PATELL" target="_blank" rel="noopener noreferrer" className="creator-link">
-              Tejas Patel
-            </a>
-          </div>
+      <div className="page">
+        <div className="hero">
+          <p className="eyebrow">Local · Private · Instant</p>
+          <h1>Darkroom</h1>
+          <p>Develop leaner photos without leaving your browser. Drop in JPEGs, PNGs, or WebPs and dial in the exposure — nothing ever leaves your machine.</p>
         </div>
-      </footer>
+
+        <div
+          className="dropzone"
+          tabIndex="0"
+          role="button"
+          onClick={() => fileInputRef.current.click()}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInputRef.current.click(); } }}
+          onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("dragover"); }}
+          onDragLeave={(e) => { e.preventDefault(); e.currentTarget.classList.remove("dragover"); }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.currentTarget.classList.remove("dragover");
+            if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+          }}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 8V6a2 2 0 0 1 2-2h1l1.5-2h7L17 4h1a2 2 0 0 1 2 2v2" /><path d="M2 8h20v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" /><circle cx="12" cy="14" r="4" />
+          </svg>
+          <p className="dropzone-title">Drag photos here, or click to load</p>
+          <p className="dropzone-sub">Batch-friendly · <strong>JPEG · PNG · WebP</strong></p>
+          <input type="file" ref={fileInputRef} accept="image/*" multiple hidden onChange={(e) => addFiles(e.target.files)} />
+        </div>
+
+        {images.length > 0 && (
+          <>
+            <div className="filmstrip-section">
+              <div className="filmstrip-wrap">
+                <div className="filmstrip">
+                  {images.map((obj) => (
+                    <div key={obj.id} className={`thumb ${obj.id === activeId ? "active" : ""}`} onClick={() => setActiveId(obj.id)}>
+                      <img src={obj.originalURL} alt={obj.name} />
+                      <button className="thumb-remove" onClick={(e) => removeImage(obj.id, e)}>×</button>
+                    </div>
+                  ))}
+                  <button className="thumb-add" onClick={() => fileInputRef.current.click()}>+</button>
+                </div>
+              </div>
+            </div>
+
+            {activeImage && (
+              <div className="workbench">
+                <div className="compare-panel">
+                  <div
+                    className="compare-wrap"
+                    ref={compareWrapRef}
+                    onPointerDown={handleComparePointerDown}
+                    onPointerMove={handleComparePointerMove}
+                    onPointerUp={handleComparePointerUp}
+                    onPointerCancel={handleComparePointerUp}
+                  >
+                    <img className="img-before" src={activeImage.originalURL} alt="Original" />
+                    <img className="img-after" src={activeImage.compressedURL || activeImage.originalURL} alt="Compressed" />
+                    <div className="compare-handle"></div>
+                    <span className="tag tag-before">Before</span>
+                    <span className="tag tag-after">After</span>
+                  </div>
+                  <p className="dims-readout">
+                    {activeImage.img.naturalWidth}×{activeImage.img.naturalHeight} original → {activeImage.resizeEnabled ? activeImage.targetWidth : activeImage.img.naturalWidth}×
+                    {activeImage.resizeEnabled ? activeImage.targetHeight : activeImage.img.naturalHeight} output · {activeImage.format.toUpperCase()}
+                  </p>
+                </div>
+
+                <div className="controls-panel">
+                  <div className="control-block">
+                    <span className="control-label">Output format</span>
+                    <div className="format-chips">
+                      {["jpeg", "webp", "png"].map((fmt) => (
+                        <button
+                          key={fmt}
+                          className={`chip ${activeImage.format === fmt ? "active" : ""}`}
+                          onClick={() => updateActiveImage({ format: fmt })}
+                        >
+                          {fmt.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className={`control-block qualityblock ${activeImage.format === "png" ? "is-disabled" : ""}`}>
+                    <span className="control-label">Exposure (quality)</span>
+                    <div className="dial-wrap">
+                      <svg
+                        ref={dialSvgRef}
+                        className="dial-svg"
+                        viewBox="0 0 200 200"
+                        role="slider"
+                        tabIndex={activeImage.format === "png" ? -1 : 0}
+                        aria-valuemin="1"
+                        aria-valuemax="100"
+                        aria-valuenow={activeImage.quality}
+                        onPointerDown={handleDialPointerDown}
+                        onPointerMove={handleDialPointerMove}
+                        onPointerUp={handleDialPointerUp}
+                        onPointerCancel={handleDialPointerUp}
+                        onKeyDown={handleDialKeyDown}
+                      >
+                        <path className="dial-track" d={describeArc(START_ANGLE, START_ANGLE + SWEEP)} />
+                        <path className="dial-progress" d={describeArc(START_ANGLE, valueToAngle(activeImage.quality))} />
+                        <circle className="dial-knob" cx={polarToXY(valueToAngle(activeImage.quality)).x} cy={polarToXY(valueToAngle(activeImage.quality)).y} r="8" />
+                      </svg>
+                      <div className="dial-readout"><strong>{activeImage.quality}</strong><span>%</span></div>
+                    </div>
+                    <p className="hint">PNG is lossless — file size only changes with resizing.</p>
+                  </div>
+
+                  <div className="control-block">
+                    <label className="checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={activeImage.resizeEnabled}
+                        onChange={(e) => updateActiveImage({ resizeEnabled: e.target.checked })}
+                      />
+                      <span>Resize before compressing</span>
+                    </label>
+
+                    <div className={`resize-inputs ${activeImage.resizeEnabled ? "open" : ""}`}>
+                      <div className="resize-inputs-inner">
+                        <div className="dim-field">
+                          <label className="resize-label">Width (px)</label>
+                          <input type="number" min="10" step="10" value={activeImage.targetWidth} onChange={handleWidthChange} />
+                        </div>
+
+                        <button
+                          type="button"
+                          className={`lock-toggle ${activeImage.lockAspect ? "locked" : ""}`}
+                          onClick={toggleLockAspect}
+                          aria-label={activeImage.lockAspect ? "Unlock aspect ratio" : "Lock aspect ratio"}
+                          title={activeImage.lockAspect ? "Aspect ratio locked" : "Aspect ratio unlocked — sizes are independent"}
+                        >
+                          {activeImage.lockAspect ? (
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                            </svg>
+                          ) : (
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                            </svg>
+                          )}
+                        </button>
+
+                        <div className="dim-field">
+                          <label className="resize-label">Height (px)</label>
+                          <input type="number" min="10" step="10" value={activeImage.targetHeight} onChange={handleHeightChange} />
+                        </div>
+                      </div>
+
+                      {!activeImage.lockAspect && (
+                        <p className="hint" style={{ display: "block", marginTop: "8px" }}>
+                          Unlocked — width and height resize independently and may stretch the image.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="stats-block" aria-live="polite">
+                    <div className="stat"><span>Original</span><strong>{fmtKB(activeImage.originalSize)}</strong></div>
+                    <div className="stat"><span>Compressed</span><strong>{activeImage.compressedSize ? fmtKB(activeImage.compressedSize) : "—"}</strong></div>
+                    <div className="stat stat-savings">
+                      <span>Change</span>
+                      <strong className={isGoodSavings ? "good" : "warn"}>
+                        {activeImage.compressedSize ? (isGoodSavings ? "−" : "+") + Math.abs(savingsPct).toFixed(0) + "%" : "—"}
+                      </strong>
+                    </div>
+                    <div className="bar-compare">
+                      <div
+                        className={`bar-compressed ${!isGoodSavings ? "warn" : ""}`}
+                        style={{ width: activeImage.compressedSize ? Math.min(100, (activeImage.compressedSize / activeImage.originalSize) * 100) + "%" : "0%" }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  <div className="action-row">
+                    <button className="btn btn-primary" onClick={() => download(activeImage)}>Download</button>
+                    <button className="btn btn-ghost" onClick={applyAll}>Apply to all</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="global-actions">
+              <button className="btn btn-primary" onClick={downloadAll}>Download all (.zip)</button>
+              <button className="btn btn-danger" onClick={clearAll}>Clear all</button>
+            </div>
+          </>
+        )}
+
+        <footer className="footer">
+          <div className="footer-container">
+            <p className="footer-privacy">
+              <svg className="privacy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+              <strong>100% Privacy</strong> All processing happens on-device via <strong>Canvas API.</strong> No files are ever uploaded.
+            </p>
+
+            <div className="footer-share">
+              <span className="share-label">Share this tool</span>
+              <div className="share-buttons">
+                <a
+                  href="https://twitter.com/intent/tweet?text=Check%20out%20this%20awesome%20tool!"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="share-btn twitter"
+                  aria-label="Share on X"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                  </svg>
+                </a>
+
+                <a
+                  href="https://www.linkedin.com/sharing/share-offsite/?url=YOUR_URL"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="share-btn linkedin"
+                  aria-label="Share on LinkedIn"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z" />
+                  </svg>
+                </a>
+
+                <a
+                  href="https://api.whatsapp.com/send?text=Check%20out%20this%20tool!"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="share-btn whatsapp"
+                  aria-label="Share on WhatsApp"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.32a8.188 8.188 0 0 1-1.26-4.38c.01-4.54 3.71-8.24 8.26-8.24" />
+                  </svg>
+                </a>
+              </div>
+            </div>
+
+            <div className="footer-credits">
+              <span>Crafted with <span className="heart">♥</span> by </span>
+              <a href="https://github.com/TEJASS-PATELL" target="_blank" rel="noopener noreferrer" className="creator-link">
+                Tejas Patel
+              </a>
+            </div>
+          </div>
+        </footer>
+      </div>
     </div>
   );
 }

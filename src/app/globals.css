@@ -856,8 +856,8 @@ body {
 }
 
 .share-btn {
-  width: 34px;
-  height: 34px;
+  width: 35px;
+  height: 35px;
   border-radius: 50%;
   background: var(--bg-panel-raised);
   border: 1px solid var(--border);
@@ -870,8 +870,8 @@ body {
 }
 
 .share-btn svg {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
 }
 
 .share-btn:hover {
