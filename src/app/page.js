@@ -6,7 +6,6 @@ import {
   Check,
   Copy,
   Download,
-  FileImage,
   FlipHorizontal2,
   FlipVertical2,
   FolderOpen,
