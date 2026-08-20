@@ -1,376 +1,808 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import JSZip from "jszip";
+import {
+  Check,
+  Copy,
+  Download,
+  FileImage,
+  FlipHorizontal2,
+  FlipVertical2,
+  FolderOpen,
+  Image as ImageIcon,
+  Plus,
+  RotateCcw,
+  RotateCw,
+  Settings,
+  ShieldCheck,
+  Sparkles,
+  Trash2,
+  WandSparkles,
+  Upload,
+  Zap,
+  Lock,
+  Unlock,
+  Layers3,
+} from "lucide-react";
 import "./globals.css";
 
-const START_ANGLE = 135;
-const SWEEP = 270;
-const CX = 100, CY = 100, R = 80;
+const QUALITY_PRESETS = [
+  { label: "Web", value: 60, note: "Small" },
+  { label: "Balanced", value: 75, note: "Recommended" },
+  { label: "Print", value: 92, note: "High quality" },
+];
 
-function polarToXY(angleDeg) {
-  const rad = (angleDeg * Math.PI) / 180;
-  return { x: CX + R * Math.cos(rad), y: CY + R * Math.sin(rad) };
+function formatBytes(bytes) {
+  if (!bytes) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-function describeArc(startAngle, endAngle) {
-  const start = polarToXY(startAngle);
-  const end = polarToXY(endAngle);
-  let sweep = endAngle - startAngle;
-  if (sweep < 0) sweep += 360;
-  const largeArc = sweep > 180 ? 1 : 0;
-  return `M ${start.x} ${start.y} A ${R} ${R} 0 ${largeArc} 1 ${end.x} ${end.y}`;
+function extFor(format) {
+  return format === "jpeg" ? "jpg" : format;
 }
 
-function valueToAngle(v) {
-  return START_ANGLE + SWEEP * (v / 100);
-}
-
-function angleToValue(angle) {
-  let phi = angle - START_ANGLE;
-  if (phi < 0) phi += 360;
-  let value;
-  if (phi <= SWEEP) {
-    value = (phi / SWEEP) * 100;
-  } else if (phi <= SWEEP + (360 - SWEEP) / 2) {
-    value = 100;
-  } else {
-    value = 1;
-  }
-  return Math.round(Math.max(1, Math.min(100, value)));
+function stripExt(name) {
+  const idx = name.lastIndexOf(".");
+  return idx > -1 ? name.slice(0, idx) : name;
 }
 
 export default function Darkroom() {
   const [images, setImages] = useState([]);
   const [activeId, setActiveId] = useState(null);
-  const [theme, setTheme] = useState("dark");
+  const [pageUrl, setPageUrl] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [dimensionsCopied, setDimensionsCopied] = useState(false);
+  const [zipBusy, setZipBusy] = useState(false);
 
   const fileInputRef = useRef(null);
-  const dialSvgRef = useRef(null);
   const compareWrapRef = useRef(null);
-  const isDraggingDial = useRef(false);
   const isComparing = useRef(false);
 
-  const activeImage = images.find((i) => i.id === activeId) || null;
+  const activeImage = images.find((image) => image.id === activeId) || null;
 
-  const fmtKB = (bytes) => (bytes / 1024).toFixed(1) + " KB";
-  const extFor = (format) => (format === "jpeg" ? "jpg" : format);
-  const stripExt = (name) => {
-    const idx = name.lastIndexOf(".");
-    return idx > -1 ? name.slice(0, idx) : name;
-  };
+  useEffect(() => {
+    setPageUrl(window.location.href);
+  }, []);
+
+  useEffect(() => {
+    const handlePaste = (event) => {
+      const files = event.clipboardData?.files;
+      if (files?.length) addFiles(files);
+    };
+
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, []);
+
+  useEffect(() => {
+    const handleKey = (event) => {
+      if (!activeImage) return;
+
+      const mod = event.ctrlKey || event.metaKey;
+
+      if (mod && event.key.toLowerCase() === "o") {
+        event.preventDefault();
+        fileInputRef.current?.click();
+      }
+
+      if (mod && event.key.toLowerCase() === "r") {
+        event.preventDefault();
+        resetImage();
+      }
+    };
+
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [activeImage]);
 
   const addFiles = (fileList) => {
-    const files = Array.from(fileList).filter((f) => f.type.startsWith("image/"));
-    files.forEach((file) => {
-      const id = Date.now() + Math.random();
+    const files = Array.from(fileList || []).filter((file) =>
+      file.type.startsWith("image/")
+    );
+
+    files.forEach((file, index) => {
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2)}-${index}`;
       const url = URL.createObjectURL(file);
       const img = new Image();
 
       img.onload = () => {
-        const defaultFormat = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpeg";
-        const newObj = {
+        const defaultFormat =
+          file.type === "image/png"
+            ? "png"
+            : file.type === "image/webp"
+              ? "webp"
+              : "jpeg";
+
+        const image = {
           id,
           name: file.name,
           originalURL: url,
           originalSize: file.size,
           img,
           format: defaultFormat,
+          defaultFormat,
           quality: 75,
           resizeEnabled: false,
           targetWidth: img.naturalWidth,
           targetHeight: img.naturalHeight,
           lockAspect: true,
+          grayscale: false,
+          rotation: 0,
+          flipX: false,
+          flipY: false,
+          brightness: 100,
+          contrast: 100,
+          saturation: 100,
           compressedBlob: null,
           compressedURL: null,
           compressedSize: 0,
         };
 
         setImages((prev) => {
-          const updated = [...prev, newObj];
-          if (updated.length === 1) setActiveId(id);
-          return updated;
+          const next = [...prev, image];
+          if (next.length === 1) setActiveId(id);
+          return next;
         });
 
-        forceRecompress(newObj);
+        forceRecompress(image);
       };
+
       img.src = url;
     });
   };
 
-  const compressImage = (obj) => {
-    return new Promise((resolve) => {
+  const compressImage = (obj) =>
+    new Promise((resolve) => {
       const canvas = document.createElement("canvas");
-      let w = obj.img.naturalWidth;
-      let h = obj.img.naturalHeight;
+      let width = obj.img.naturalWidth;
+      let height = obj.img.naturalHeight;
 
       if (obj.resizeEnabled && obj.targetWidth > 0 && obj.targetHeight > 0) {
-        w = obj.targetWidth;
-        h = obj.targetHeight;
+        width = obj.targetWidth;
+        height = obj.targetHeight;
       }
 
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(obj.img, 0, 0, w, h);
+      const rotation = obj.rotation % 360;
+      const vertical = rotation === 90 || rotation === 270;
 
-      const mime = "image/" + obj.format;
-      const qualityParam = obj.format === "png" ? undefined : obj.quality / 100;
+      canvas.width = vertical ? height : width;
+      canvas.height = vertical ? width : height;
 
-      canvas.toBlob((blob) => {
-        if (!blob) { resolve(obj); return; }
-        if (obj.compressedURL) URL.revokeObjectURL(obj.compressedURL);
-        resolve({
-          ...obj,
-          compressedBlob: blob,
-          compressedURL: URL.createObjectURL(blob),
-          compressedSize: blob.size,
-        });
-      }, mime, qualityParam);
+      const ctx = canvas.getContext("2d", { alpha: true });
+
+      if (!ctx) {
+        resolve(obj);
+        return;
+      }
+
+      const filters = [
+        `brightness(${obj.brightness}%)`,
+        `contrast(${obj.contrast}%)`,
+        `saturate(${obj.saturation}%)`,
+        obj.grayscale ? "grayscale(100%)" : "",
+      ].filter(Boolean);
+
+      ctx.filter = filters.join(" ");
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((rotation * Math.PI) / 180);
+      ctx.scale(obj.flipX ? -1 : 1, obj.flipY ? -1 : 1);
+      ctx.drawImage(obj.img, -width / 2, -height / 2, width, height);
+
+      const mime = obj.format === "jpeg" ? "image/jpeg" : `image/${obj.format}`;
+      const quality = obj.format === "png" ? undefined : obj.quality / 100;
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            resolve(obj);
+            return;
+          }
+
+          if (obj.compressedURL) {
+            URL.revokeObjectURL(obj.compressedURL);
+          }
+
+          resolve({
+            ...obj,
+            compressedBlob: blob,
+            compressedURL: URL.createObjectURL(blob),
+            compressedSize: blob.size,
+          });
+        },
+        mime,
+        quality
+      );
     });
-  };
 
   const forceRecompress = async (obj) => {
     if (!obj) return;
-    const updatedObj = await compressImage(obj);
-    setImages((prev) => prev.map((img) => (img.id === obj.id ? updatedObj : img)));
+    const fresh = await compressImage(obj);
+
+    setImages((prev) =>
+      prev.map((image) => (image.id === obj.id ? fresh : image))
+    );
   };
 
   useEffect(() => {
     if (!activeImage) return;
-    const timer = setTimeout(() => forceRecompress(activeImage), 120);
+
+    const timer = setTimeout(() => forceRecompress(activeImage), 110);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeImage?.quality,
     activeImage?.format,
     activeImage?.resizeEnabled,
     activeImage?.targetWidth,
     activeImage?.targetHeight,
+    activeImage?.grayscale,
+    activeImage?.rotation,
+    activeImage?.flipX,
+    activeImage?.flipY,
+    activeImage?.brightness,
+    activeImage?.contrast,
+    activeImage?.saturation,
   ]);
 
   const updateActiveImage = (updates) => {
-    setImages((prev) => prev.map((img) => (img.id === activeId ? { ...img, ...updates } : img)));
+    setImages((prev) =>
+      prev.map((image) =>
+        image.id === activeId ? { ...image, ...updates } : image
+      )
+    );
   };
 
-  const removeImage = (id, e) => {
-    e.stopPropagation();
-    const idx = images.findIndex((i) => i.id === id);
-    if (idx === -1) return;
-    const obj = images[idx];
-    URL.revokeObjectURL(obj.originalURL);
-    if (obj.compressedURL) URL.revokeObjectURL(obj.compressedURL);
+  const resetImage = () => {
+    if (!activeImage) return;
 
-    const newImages = images.filter((i) => i.id !== id);
-    setImages(newImages);
+    updateActiveImage({
+      format: activeImage.defaultFormat,
+      quality: 75,
+      resizeEnabled: false,
+      targetWidth: activeImage.img.naturalWidth,
+      targetHeight: activeImage.img.naturalHeight,
+      lockAspect: true,
+      grayscale: false,
+      rotation: 0,
+      flipX: false,
+      flipY: false,
+      brightness: 100,
+      contrast: 100,
+      saturation: 100,
+    });
+  };
+
+  const autoOptimize = () => {
+    if (!activeImage) return;
+
+    const maxDimension = 2400;
+    const largest = Math.max(
+      activeImage.img.naturalWidth,
+      activeImage.img.naturalHeight
+    );
+
+    const shouldResize = largest > maxDimension;
+
+    let targetWidth = activeImage.img.naturalWidth;
+    let targetHeight = activeImage.img.naturalHeight;
+
+    if (shouldResize) {
+      const ratio = maxDimension / largest;
+      targetWidth = Math.max(
+        10,
+        Math.round(activeImage.img.naturalWidth * ratio)
+      );
+      targetHeight = Math.max(
+        10,
+        Math.round(activeImage.img.naturalHeight * ratio)
+      );
+    }
+
+    updateActiveImage({
+      format: "webp",
+      quality: 82,
+      resizeEnabled: shouldResize,
+      targetWidth,
+      targetHeight,
+    });
+  };
+
+  const removeImage = (id, event) => {
+    event.stopPropagation();
+
+    const target = images.find((image) => image.id === id);
+    if (!target) return;
+
+    URL.revokeObjectURL(target.originalURL);
+
+    if (target.compressedURL) {
+      URL.revokeObjectURL(target.compressedURL);
+    }
+
+    const next = images.filter((image) => image.id !== id);
+    setImages(next);
+
     if (activeId === id) {
-      setActiveId(newImages.length ? newImages[0].id : null);
+      setActiveId(next.length ? next[0].id : null);
     }
   };
 
   const clearAll = () => {
-    images.forEach((o) => {
-      URL.revokeObjectURL(o.originalURL);
-      if (o.compressedURL) URL.revokeObjectURL(o.compressedURL);
+    images.forEach((image) => {
+      URL.revokeObjectURL(image.originalURL);
+
+      if (image.compressedURL) {
+        URL.revokeObjectURL(image.compressedURL);
+      }
     });
+
     setImages([]);
     setActiveId(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   const download = (obj) => {
-    if (!obj || !obj.compressedBlob) return;
-    const a = document.createElement("a");
-    a.href = obj.compressedURL;
-    a.download = stripExt(obj.name) + "-compressed." + extFor(obj.format);
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    if (!obj?.compressedBlob) return;
+
+    const anchor = document.createElement("a");
+    anchor.href = obj.compressedURL;
+    anchor.download = `${stripExt(obj.name)}-compressed.${extFor(obj.format)}`;
+
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
   };
 
   const applyAll = async () => {
     if (!activeImage) return;
-    const newImages = [...images];
-    for (let i = 0; i < newImages.length; i++) {
-      if (newImages[i].id !== activeId) {
-        newImages[i] = await compressImage({
-          ...newImages[i],
-          format: activeImage.format,
-          quality: activeImage.quality,
-          resizeEnabled: activeImage.resizeEnabled,
-          targetWidth: activeImage.targetWidth,
-          targetHeight: activeImage.targetHeight,
-          lockAspect: activeImage.lockAspect,
-        });
-      }
+
+    const next = [...images];
+
+    for (let i = 0; i < next.length; i += 1) {
+      if (next[i].id === activeId) continue;
+
+      next[i] = await compressImage({
+        ...next[i],
+        format: activeImage.format,
+        quality: activeImage.quality,
+        resizeEnabled: activeImage.resizeEnabled,
+        targetWidth: activeImage.targetWidth,
+        targetHeight: activeImage.targetHeight,
+        lockAspect: activeImage.lockAspect,
+        grayscale: activeImage.grayscale,
+        rotation: activeImage.rotation,
+        flipX: activeImage.flipX,
+        flipY: activeImage.flipY,
+        brightness: activeImage.brightness,
+        contrast: activeImage.contrast,
+        saturation: activeImage.saturation,
+      });
     }
-    setImages(newImages);
+
+    setImages(next);
   };
 
-  const downloadAll = async (e) => {
-    if (!images.length) return;
-    const btn = e.target;
-    const originalText = btn.textContent;
-    btn.textContent = "Zipping…";
-    btn.disabled = true;
+  const downloadAll = async () => {
+    if (!images.length || zipBusy) return;
 
-    const zip = new JSZip();
-    images.forEach((o) => {
-      if (o.compressedBlob) {
-        zip.file(stripExt(o.name) + "-compressed." + extFor(o.format), o.compressedBlob);
-      }
-    });
+    setZipBusy(true);
 
-    const content = await zip.generateAsync({ type: "blob" });
-    const url = URL.createObjectURL(content);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "darkroom-compressed.zip";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    try {
+      const zip = new JSZip();
 
-    btn.textContent = originalText;
-    btn.disabled = false;
+      images.forEach((image) => {
+        if (image.compressedBlob) {
+          zip.file(
+            `${stripExt(image.name)}-compressed.${extFor(image.format)}`,
+            image.compressedBlob
+          );
+        }
+      });
+
+      const content = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(content);
+      const anchor = document.createElement("a");
+
+      anchor.href = url;
+      anchor.download = "darkroom-compressed.zip";
+
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+
+      URL.revokeObjectURL(url);
+    } finally {
+      setZipBusy(false);
+    }
   };
 
-  const angleFromPointer = (clientX, clientY) => {
-    if (!dialSvgRef.current) return 0;
-    const rect = dialSvgRef.current.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    let angle = (Math.atan2(clientY - cy, clientX - cx) * 180) / Math.PI;
-    if (angle < 0) angle += 360;
-    return angle;
+  const copyShareLink = async () => {
+    try {
+      await navigator.clipboard.writeText(pageUrl || window.location.href);
+      setCopied(true);
+
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setCopied(false);
+    }
   };
 
-  const handleDialPointerDown = (e) => {
-    isDraggingDial.current = true;
-    e.target.setPointerCapture(e.pointerId);
-    updateActiveImage({ quality: angleToValue(angleFromPointer(e.clientX, e.clientY)) });
-  };
-  const handleDialPointerMove = (e) => {
-    if (!isDraggingDial.current) return;
-    updateActiveImage({ quality: angleToValue(angleFromPointer(e.clientX, e.clientY)) });
-  };
-  const handleDialPointerUp = (e) => {
-    isDraggingDial.current = false;
-    e.target.releasePointerCapture(e.pointerId);
-  };
-  const handleDialKeyDown = (e) => {
+  const copyOutputDimensions = async () => {
     if (!activeImage) return;
-    let v = activeImage.quality;
-    if (e.key === "ArrowRight" || e.key === "ArrowUp") v += 1;
-    else if (e.key === "ArrowLeft" || e.key === "ArrowDown") v -= 1;
-    else if (e.key === "PageUp") v += 10;
-    else if (e.key === "PageDown") v -= 10;
-    else if (e.key === "Home") v = 1;
-    else if (e.key === "End") v = 100;
-    else return;
-    e.preventDefault();
-    updateActiveImage({ quality: Math.max(1, Math.min(100, v)) });
-  };
 
-  const handleWidthChange = (e) => {
-    const newWidth = Math.max(10, parseInt(e.target.value, 10) || activeImage.img.naturalWidth);
-    if (activeImage.lockAspect) {
-      const aspect = activeImage.img.naturalHeight / activeImage.img.naturalWidth;
-      updateActiveImage({ targetWidth: newWidth, targetHeight: Math.round(newWidth * aspect) });
-    } else {
-      updateActiveImage({ targetWidth: newWidth });
+    try {
+      await navigator.clipboard.writeText(`${outputWidth} × ${outputHeight}`);
+      setDimensionsCopied(true);
+
+      setTimeout(() => setDimensionsCopied(false), 1500);
+    } catch {
+      setDimensionsCopied(false);
     }
   };
 
-  const handleHeightChange = (e) => {
-    const newHeight = Math.max(10, parseInt(e.target.value, 10) || activeImage.img.naturalHeight);
+  const handleWidthChange = (event) => {
+    if (!activeImage) return;
+
+    const width = Math.max(
+      10,
+      parseInt(event.target.value, 10) || activeImage.img.naturalWidth
+    );
+
     if (activeImage.lockAspect) {
-      const aspect = activeImage.img.naturalWidth / activeImage.img.naturalHeight;
-      updateActiveImage({ targetHeight: newHeight, targetWidth: Math.round(newHeight * aspect) });
+      const aspect =
+        activeImage.img.naturalHeight / activeImage.img.naturalWidth;
+
+      updateActiveImage({
+        targetWidth: width,
+        targetHeight: Math.round(width * aspect),
+      });
     } else {
-      updateActiveImage({ targetHeight: newHeight });
+      updateActiveImage({ targetWidth: width });
     }
   };
 
-  const toggleLockAspect = () => updateActiveImage({ lockAspect: !activeImage.lockAspect });
+  const handleHeightChange = (event) => {
+    if (!activeImage) return;
+
+    const height = Math.max(
+      10,
+      parseInt(event.target.value, 10) || activeImage.img.naturalHeight
+    );
+
+    if (activeImage.lockAspect) {
+      const aspect =
+        activeImage.img.naturalWidth / activeImage.img.naturalHeight;
+
+      updateActiveImage({
+        targetHeight: height,
+        targetWidth: Math.round(height * aspect),
+      });
+    } else {
+      updateActiveImage({ targetHeight: height });
+    }
+  };
 
   const setComparePos = (clientX) => {
     if (!compareWrapRef.current) return;
+
     const rect = compareWrapRef.current.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
-    compareWrapRef.current.style.setProperty("--pos", pct + "%");
+    const percentage = Math.max(
+      0,
+      Math.min(100, ((clientX - rect.left) / rect.width) * 100)
+    );
+
+    compareWrapRef.current.style.setProperty("--pos", `${percentage}%`);
   };
 
-  const handleComparePointerDown = (e) => {
+  const handleComparePointerDown = (event) => {
     isComparing.current = true;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    setComparePos(e.clientX);
-  };
-  const handleComparePointerMove = (e) => {
-    if (!isComparing.current) return;
-    setComparePos(e.clientX);
-  };
-  const handleComparePointerUp = (e) => {
-    isComparing.current = false;
-    e.currentTarget.releasePointerCapture(e.pointerId);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setComparePos(event.clientX);
   };
 
-  const savingsPct = activeImage && activeImage.compressedSize
-    ? ((activeImage.originalSize - activeImage.compressedSize) / activeImage.originalSize) * 100
+  const handleComparePointerMove = (event) => {
+    if (isComparing.current) {
+      setComparePos(event.clientX);
+    }
+  };
+
+  const handleComparePointerUp = (event) => {
+    isComparing.current = false;
+
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch { }
+  };
+
+  const originalSize = activeImage?.originalSize || 0;
+  const compressedSize = activeImage?.compressedSize || 0;
+
+  const savingsPct =
+    originalSize && compressedSize
+      ? ((originalSize - compressedSize) / originalSize) * 100
+      : 0;
+
+  const sizeRatio =
+    originalSize && compressedSize
+      ? Math.min(100, (compressedSize / originalSize) * 100)
+      : 0;
+
+  const totalOriginal = images.reduce(
+    (sum, image) => sum + image.originalSize,
+    0
+  );
+
+  const totalCompressed = images.reduce(
+    (sum, image) => sum + (image.compressedSize || image.originalSize),
+    0
+  );
+
+  const totalSavings = totalOriginal
+    ? ((totalOriginal - totalCompressed) / totalOriginal) * 100
     : 0;
-  const isGoodSavings = savingsPct >= 0;
+
+  const outputWidth = activeImage?.resizeEnabled
+    ? activeImage.targetWidth
+    : activeImage?.img.naturalWidth || 0;
+
+  const outputHeight = activeImage?.resizeEnabled
+    ? activeImage.targetHeight
+    : activeImage?.img.naturalHeight || 0;
 
   return (
-    <div data-theme={theme}>
+    <main className="darkroom-shell">
+      <div className="ambient ambient-one" />
+      <div className="ambient ambient-two" />
 
-      <div className="page">
-        <div className="hero">
-          <p className="eyebrow">Local · Private · Instant</p>
-          <h1>Darkroom</h1>
-          <p>Develop leaner photos without leaving your browser. Drop in JPEGs, PNGs, or WebPs and dial in the exposure — nothing ever leaves your machine.</p>
+      <header className="topbar page-width">
+        <div className="brand-lockup">
+          <div className="brand-mark">
+            <Layers3 size={20} strokeWidth={2.1} />
+          </div>
+
+          <div>
+            <div className="brand-name">Darkroom</div>
+            <div className="brand-sub">Private image optimizer</div>
+          </div>
         </div>
 
-        <div
-          className="dropzone"
-          tabIndex="0"
-          role="button"
-          onClick={() => fileInputRef.current.click()}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInputRef.current.click(); } }}
-          onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("dragover"); }}
-          onDragLeave={(e) => { e.preventDefault(); e.currentTarget.classList.remove("dragover"); }}
-          onDrop={(e) => {
-            e.preventDefault();
-            e.currentTarget.classList.remove("dragover");
-            if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
-          }}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 8V6a2 2 0 0 1 2-2h1l1.5-2h7L17 4h1a2 2 0 0 1 2 2v2" /><path d="M2 8h20v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" /><circle cx="12" cy="14" r="4" />
-          </svg>
-          <p className="dropzone-title">Drag photos here, or click to load</p>
-          <p className="dropzone-sub">Batch-friendly · <strong>JPEG · PNG · WebP</strong></p>
-          <input type="file" ref={fileInputRef} accept="image/*" multiple hidden onChange={(e) => addFiles(e.target.files)} />
+        <div className="topbar-actions">
+          <span className="privacy-pill">
+            <ShieldCheck size={15} strokeWidth={2} />
+            Local processing
+          </span>
+
+
+        </div>
+      </header>
+
+      <section className="hero page-width">
+        <div className="hero-copy">
+          <div className="eyebrow">
+            <span className="eyebrow-dot" />
+            Fast. Private. Precise.
+          </div>
+
+          <h1>
+            Make every image{" "}
+            <span>lighter & better.</span>
+          </h1>
+
+          <p>
+            Compress, resize, and polish your photos directly in your browser.
+            Fast, private, and beautifully optimized — your files never leave this device.
+          </p>
+
+          <div className="hero-meta">
+            <span><strong>{images.length}</strong> uploads</span>
+            <span>JPEG · PNG · WebP</span>
+            <span>
+              Paste with <kbd>Ctrl</kbd> + <kbd>V</kbd>
+            </span>
+          </div>
         </div>
 
-        {images.length > 0 && (
-          <>
-            <div className="filmstrip-section">
-              <div className="filmstrip-wrap">
-                <div className="filmstrip">
-                  {images.map((obj) => (
-                    <div key={obj.id} className={`thumb ${obj.id === activeId ? "active" : ""}`} onClick={() => setActiveId(obj.id)}>
-                      <img src={obj.originalURL} alt={obj.name} />
-                      <button className="thumb-remove" onClick={(e) => removeImage(obj.id, e)}>×</button>
-                    </div>
-                  ))}
-                  <button className="thumb-add" onClick={() => fileInputRef.current.click()}>+</button>
-                </div>
-              </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          hidden
+          onChange={(event) => addFiles(event.target.files)}
+        />
+      </section>
+
+      {images.length === 0 ? (
+        <section className="empty-workspace page-width">
+          <div
+            className="dropzone"
+            tabIndex={0}
+            role="button"
+            onClick={() => fileInputRef.current?.click()}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
+            onDragOver={(event) => {
+              event.preventDefault();
+              event.currentTarget.classList.add("dragover");
+            }}
+            onDragLeave={(event) =>
+              event.currentTarget.classList.remove("dragover")
+            }
+            onDrop={(event) => {
+              event.preventDefault();
+              event.currentTarget.classList.remove("dragover");
+              addFiles(event.dataTransfer.files);
+            }}
+          >
+            <div className="drop-icon">
+              <Upload size={25} strokeWidth={2} />
             </div>
 
-            {activeImage && (
-              <div className="workbench">
-                <div className="compare-panel">
+            <h2>Drop your photos here</h2>
+            <p>or click anywhere to browse your device</p>
+
+            <div className="drop-badges">
+              <span>Batch upload</span>
+              <span>Paste from clipboard</span>
+              <span>No cloud upload</span>
+            </div>
+          </div>
+
+          <div className="feature-row">
+            <div>
+              <span className="feature-icon">
+                <WandSparkles size={17} strokeWidth={2} />
+              </span>
+              <span>
+                <strong>Smart compression</strong>
+                <small>Fine control without losing the look.</small>
+              </span>
+            </div>
+
+            <div>
+              <span className="feature-icon">
+                <Sparkles size={17} strokeWidth={2} />
+              </span>
+              <span>
+                <strong>Quick polish</strong>
+                <small>Brightness, contrast and saturation.</small>
+              </span>
+            </div>
+
+            <div>
+              <span className="feature-icon">
+                <ShieldCheck size={17} strokeWidth={2} />
+              </span>
+              <span>
+                <strong>100% private</strong>
+                <small>Canvas processing stays local.</small>
+              </span>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <section className="workspace page-width">
+          <div className="workspace-toolbar">
+            <div>
+              <div className="section-kicker">Your workspace</div>
+              {/* <h2>
+                {images.length} {images.length === 1 ? "image" : "images"} ready to optimize
+              </h2> */}
+            </div>
+
+            <div className="toolbar-actions">
+              <button
+                type="button"
+                className="btn btn-soft"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Plus size={16} strokeWidth={2} />
+                Add more
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-dark"
+                onClick={downloadAll}
+                disabled={zipBusy}
+              >
+                {zipBusy ? (
+                  <>
+                    <RotateCw className="spin-icon" size={15} strokeWidth={2} />
+                    Preparing ZIP…
+                  </>
+                ) : (
+                  <>
+                    <Download size={16} strokeWidth={2} />
+                    Download all
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div className="filmstrip-card">
+            <div className="filmstrip-head">
+              <span>Library</span>
+              <span>
+                {formatBytes(totalOriginal)} source · {totalSavings >= 0
+                  ? `${totalSavings.toFixed(0)}% smaller`
+                  : `${Math.abs(totalSavings).toFixed(0)}% larger`}
+              </span>
+            </div>
+
+            <div className="filmstrip">
+              {images.map((image, index) => (
+                <button
+                  key={image.id}
+                  type="button"
+                  className={`thumb ${image.id === activeId ? "active" : ""}`}
+                  onClick={() => setActiveId(image.id)}
+                >
+                  <img
+                    src={image.originalURL}
+                    alt={image.name}
+                    style={{
+                      transform: `rotate(${image.rotation}deg) scale(${image.flipX ? -1 : 1}, ${image.flipY ? -1 : 1})`,
+                      filter: image.grayscale ? "grayscale(100%)" : "none",
+                    }}
+                  />
+
+                  <span className="thumb-name">{image.name}</span>
+
+                  <span
+                    className="thumb-remove"
+                    onClick={(event) => removeImage(image.id, event)}
+                    aria-label={`Remove ${image.name}`}
+                  >
+                    <Trash2 size={12} strokeWidth={2} />
+                  </span>
+                </button>
+              ))}
+
+              <button
+                type="button"
+                className="thumb-add"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Plus size={19} strokeWidth={2} />
+                <span>Add</span>
+              </button>
+            </div>
+          </div>
+
+          {activeImage && (
+            <>
+              <div className="editor-grid">
+                <section className="preview-card">
+                  <div className="card-topline">
+                    <div>
+                      <strong>{activeImage.name}</strong>
+                    </div>
+
+                    <div className="preview-actions">
+                      <span className="soft-badge">
+                        {activeImage.format.toUpperCase()}
+                      </span>
+
+                      <span className="soft-badge">
+                        {outputWidth} × {outputHeight}
+                      </span>
+                    </div>
+                  </div>
+
                   <div
                     className="compare-wrap"
                     ref={compareWrapRef}
@@ -378,203 +810,677 @@ export default function Darkroom() {
                     onPointerMove={handleComparePointerMove}
                     onPointerUp={handleComparePointerUp}
                     onPointerCancel={handleComparePointerUp}
+                    style={{ "--pos": "50%" }}
                   >
-                    <img className="img-before" src={activeImage.originalURL} alt="Original" />
-                    <img className="img-after" src={activeImage.compressedURL || activeImage.originalURL} alt="Compressed" />
-                    <div className="compare-handle"></div>
-                    <span className="tag tag-before">Before</span>
-                    <span className="tag tag-after">After</span>
-                  </div>
-                  <p className="dims-readout">
-                    {activeImage.img.naturalWidth}×{activeImage.img.naturalHeight} original → {activeImage.resizeEnabled ? activeImage.targetWidth : activeImage.img.naturalWidth}×
-                    {activeImage.resizeEnabled ? activeImage.targetHeight : activeImage.img.naturalHeight} output · {activeImage.format.toUpperCase()}
-                  </p>
-                </div>
+                    <img
+                      className="img-before"
+                      src={activeImage.originalURL}
+                      alt="Original preview"
+                    />
 
-                <div className="controls-panel">
-                  <div className="control-block">
-                    <span className="control-label">Output format</span>
-                    <div className="format-chips">
-                      {["jpeg", "webp", "png"].map((fmt) => (
+                    <img
+                      className="img-after"
+                      src={activeImage.compressedURL || activeImage.originalURL}
+                      alt="Optimized preview"
+                      style={{
+                        filter: activeImage.grayscale ? "grayscale(100%)" : undefined,
+                      }}
+                    />
+
+                    <div className="compare-handle">
+                      <span>↔</span>
+                    </div>
+
+                    <span className="preview-tag before">Original</span>
+                    <span className="preview-tag after">Optimized</span>
+                  </div>
+
+                  <div className="preview-footer">
+                    <span>
+                      {activeImage.img.naturalWidth} × {activeImage.img.naturalHeight} source
+                    </span>
+
+                    <span className="preview-tip">
+                      Drag the divider to compare
+                    </span>
+
+                    <button
+                      type="button"
+                      className="output-dimensions"
+                      onClick={copyOutputDimensions}
+                      title="Copy output dimensions"
+                    >
+                      <span>
+                        {dimensionsCopied
+                          ? "Copied"
+                          : `${outputWidth} × ${outputHeight} output`}
+                      </span>
+                    </button>
+                  </div>
+                </section>
+
+                <aside className="controls-card">
+                  <div className="controls-header">
+                    <div className="settings-icon">
+                      <Settings size={18} strokeWidth={2} />
+                    </div>
+
+                    <button
+                      type="button"
+                      className="icon-text-btn"
+                      onClick={resetImage}
+                    >
+                      <RotateCcw size={15} strokeWidth={2} />
+                      Reset
+                    </button>
+                  </div>
+
+                  <div className="auto-optimize">
+                    <div className="auto-optimize-copy">
+                      <span className="auto-icon">
+                        <Sparkles size={16} strokeWidth={2} />
+                      </span>
+
+                      <span>
+                        <strong>Auto optimize</strong>
+                        <small>Smart WebP + sensible dimensions.</small>
+                      </span>
+                    </div>
+
+                    <button type="button" onClick={autoOptimize}>
+                      <Zap size={13} strokeWidth={2.2} />
+                      Optimize
+                    </button>
+                  </div>
+
+                  <div className="control-section">
+                    <div className="control-title-row">
+                      <span>Format</span>
+                      <span className="control-help">Choose your output</span>
+                    </div>
+
+                    <div className="segmented">
+                      {["jpeg", "webp", "png"].map((format) => (
                         <button
-                          key={fmt}
-                          className={`chip ${activeImage.format === fmt ? "active" : ""}`}
-                          onClick={() => updateActiveImage({ format: fmt })}
+                          key={format}
+                          type="button"
+                          className={activeImage.format === format ? "selected" : ""}
+                          onClick={() => updateActiveImage({ format })}
                         >
-                          {fmt.toUpperCase()}
+                          {format.toUpperCase()}
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  <div className={`control-block qualityblock ${activeImage.format === "png" ? "is-disabled" : ""}`}>
-                    <span className="control-label">Exposure (quality)</span>
-                    <div className="dial-wrap">
-                      <svg
-                        ref={dialSvgRef}
-                        className="dial-svg"
-                        viewBox="0 0 200 200"
-                        role="slider"
-                        tabIndex={activeImage.format === "png" ? -1 : 0}
-                        aria-valuemin="1"
-                        aria-valuemax="100"
-                        aria-valuenow={activeImage.quality}
-                        onPointerDown={handleDialPointerDown}
-                        onPointerMove={handleDialPointerMove}
-                        onPointerUp={handleDialPointerUp}
-                        onPointerCancel={handleDialPointerUp}
-                        onKeyDown={handleDialKeyDown}
-                      >
-                        <path className="dial-track" d={describeArc(START_ANGLE, START_ANGLE + SWEEP)} />
-                        <path className="dial-progress" d={describeArc(START_ANGLE, valueToAngle(activeImage.quality))} />
-                        <circle className="dial-knob" cx={polarToXY(valueToAngle(activeImage.quality)).x} cy={polarToXY(valueToAngle(activeImage.quality)).y} r="8" />
-                      </svg>
-                      <div className="dial-readout"><strong>{activeImage.quality}</strong><span>%</span></div>
-                    </div>
-                    <p className="hint">PNG is lossless — file size only changes with resizing.</p>
-                  </div>
-
-                  <div className="control-block">
-                    <label className="checkbox-row">
-                      <input
-                        type="checkbox"
-                        checked={activeImage.resizeEnabled}
-                        onChange={(e) => updateActiveImage({ resizeEnabled: e.target.checked })}
-                      />
-                      <span>Resize before compressing</span>
-                    </label>
-
-                    <div className={`resize-inputs ${activeImage.resizeEnabled ? "open" : ""}`}>
-                      <div className="resize-inputs-inner">
-                        <div className="dim-field">
-                          <label className="resize-label">Width (px)</label>
-                          <input type="number" min="10" step="10" value={activeImage.targetWidth} onChange={handleWidthChange} />
-                        </div>
-
-                        <button
-                          type="button"
-                          className={`lock-toggle ${activeImage.lockAspect ? "locked" : ""}`}
-                          onClick={toggleLockAspect}
-                          aria-label={activeImage.lockAspect ? "Unlock aspect ratio" : "Lock aspect ratio"}
-                          title={activeImage.lockAspect ? "Aspect ratio locked" : "Aspect ratio unlocked — sizes are independent"}
-                        >
-                          {activeImage.lockAspect ? (
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                            </svg>
-                          ) : (
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 9.9-1" />
-                            </svg>
-                          )}
-                        </button>
-
-                        <div className="dim-field">
-                          <label className="resize-label">Height (px)</label>
-                          <input type="number" min="10" step="10" value={activeImage.targetHeight} onChange={handleHeightChange} />
-                        </div>
-                      </div>
-
-                      {!activeImage.lockAspect && (
-                        <p className="hint" style={{ display: "block", marginTop: "8px" }}>
-                          Unlocked — width and height resize independently and may stretch the image.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="stats-block" aria-live="polite">
-                    <div className="stat"><span>Original</span><strong>{fmtKB(activeImage.originalSize)}</strong></div>
-                    <div className="stat"><span>Compressed</span><strong>{activeImage.compressedSize ? fmtKB(activeImage.compressedSize) : "—"}</strong></div>
-                    <div className="stat stat-savings">
-                      <span>Change</span>
-                      <strong className={isGoodSavings ? "good" : "warn"}>
-                        {activeImage.compressedSize ? (isGoodSavings ? "−" : "+") + Math.abs(savingsPct).toFixed(0) + "%" : "—"}
+                  <div className="control-section quality-section">
+                    <div className="control-title-row">
+                      <span>Quality</span>
+                      <strong>
+                        {activeImage.format === "png"
+                          ? "Lossless"
+                          : `${activeImage.quality}%`}
                       </strong>
                     </div>
-                    <div className="bar-compare">
+
+                    <div className="quality-meter">
+                      <div className="quality-meter-top">
+                        <div>
+                          <span className="quality-meter-label">
+                            Compression quality
+                          </span>
+
+                          <strong className="quality-meter-value">
+                            {activeImage.format === "png"
+                              ? "Lossless"
+                              : `${activeImage.quality}%`}
+                          </strong>
+                        </div>
+
+                        <span className="quality-status">
+                          {activeImage.format === "png"
+                            ? "No quality loss"
+                            : activeImage.quality >= 95
+                              ? "Near original"
+                              : activeImage.quality >= 80
+                                ? "High quality"
+                                : activeImage.quality >= 50
+                                  ? "Balanced"
+                                  : "Smaller file"}
+                        </span>
+                      </div>
+
                       <div
-                        className={`bar-compressed ${!isGoodSavings ? "warn" : ""}`}
-                        style={{ width: activeImage.compressedSize ? Math.min(100, (activeImage.compressedSize / activeImage.originalSize) * 100) + "%" : "0%" }}
-                      ></div>
+                        className={`quality-slider-wrap ${activeImage.format === "png" ? "disabled" : ""}`}
+                      >
+                        <div className="quality-slider-track">
+                          <div
+                            className="quality-slider-fill"
+                            style={{
+                              width: `${activeImage.format === "png" ? 100 : activeImage.quality}%`,
+                            }}
+                          />
+
+                          <div
+                            className="quality-slider-glow"
+                            style={{
+                              left: `${activeImage.format === "png" ? 100 : activeImage.quality}%`,
+                            }}
+                          />
+                        </div>
+
+                        <input
+                          className="quality-range"
+                          type="range"
+                          min="1"
+                          max="100"
+                          value={activeImage.quality}
+                          disabled={activeImage.format === "png"}
+                          onChange={(event) =>
+                            updateActiveImage({
+                              quality: Number(event.target.value),
+                            })
+                          }
+                          aria-label="Image quality"
+                        />
+                      </div>
+
+                      <div className="quality-scale">
+                        <span>Small</span>
+                        <span>Balanced</span>
+                        <span>Maximum</span>
+                      </div>
+
+                      <div className="quality-hint">
+                        <span className="quality-hint-dot" />
+                        <span>
+                          {activeImage.format === "png"
+                            ? "PNG keeps the original image quality."
+                            : activeImage.quality >= 95
+                              ? "Best visual quality with a larger output."
+                              : activeImage.quality >= 80
+                                ? "Great balance between quality and file size."
+                                : activeImage.quality >= 50
+                                  ? "Recommended for everyday web use."
+                                  : "Prioritizing a smaller file size."}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="preset-grid">
+                      {QUALITY_PRESETS.map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          className={
+                            activeImage.quality === preset.value ? "selected" : ""
+                          }
+                          onClick={() =>
+                            updateActiveImage({ quality: preset.value })
+                          }
+                          disabled={activeImage.format === "png"}
+                        >
+                          <strong>{preset.label}</strong>
+                          <small>{preset.note}</small>
+                        </button>
+                      ))}
                     </div>
                   </div>
 
-                  <div className="action-row">
-                    <button className="btn btn-primary" onClick={() => download(activeImage)}>Download</button>
-                    <button className="btn btn-ghost" onClick={applyAll}>Apply to all</button>
+                  <div className="control-section">
+                    <div className="control-title-row">
+                      <span>Quick edits</span>
+                      <span className="control-help">Non-destructive</span>
+                    </div>
+
+                    <div className="quick-edit-grid">
+                      <button
+                        type="button"
+                        className={activeImage.grayscale ? "selected" : ""}
+                        onClick={() =>
+                          updateActiveImage({
+                            grayscale: !activeImage.grayscale,
+                          })
+                        }
+                      >
+                        B&W
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateActiveImage({
+                            rotation: (activeImage.rotation + 90) % 360,
+                          })
+                        }
+                      >
+                        <RotateCw size={15} strokeWidth={2} />
+                        Rotate
+                      </button>
+
+                      <button
+                        type="button"
+                        className={activeImage.flipX ? "selected" : ""}
+                        onClick={() =>
+                          updateActiveImage({
+                            flipX: !activeImage.flipX,
+                          })
+                        }
+                      >
+                        <FlipHorizontal2 size={15} strokeWidth={2} />
+                        Flip X
+                      </button>
+
+                      <button
+                        type="button"
+                        className={activeImage.flipY ? "selected" : ""}
+                        onClick={() =>
+                          updateActiveImage({
+                            flipY: !activeImage.flipY,
+                          })
+                        }
+                      >
+                        <FlipVertical2 size={15} strokeWidth={2} />
+                        Flip Y
+                      </button>
+                    </div>
+                  </div>
+                </aside>
+              </div>
+
+              <section className="below-editor">
+                <div className="below-editor-card tuning-card">
+                  <div className="panel-heading">
+                    <div>
+                      <h3>Fine tuning</h3>
+                    </div>
+                    <span className="panel-meta">Non-destructive</span>
+                  </div>
+
+                  <div className="tuning-grid">
+                    {[
+                      ["Brightness", "brightness", 50, 150],
+                      ["Contrast", "contrast", 50, 150],
+                      ["Saturation", "saturation", 0, 180],
+                    ].map(([label, key, min, max]) => {
+                      const value = activeImage[key];
+                      const progress = ((value - min) / (max - min)) * 100;
+
+                      return (
+                        <label key={key} className="range-field tuning-field">
+                          <span>
+                            <strong>{label}</strong>
+                            <output>{value}%</output>
+                          </span>
+
+                          <input
+                            type="range"
+                            min={min}
+                            max={max}
+                            value={value}
+                            style={{
+                              "--range-progress": `${progress}%`,
+                            }}
+                            onChange={(event) =>
+                              updateActiveImage({
+                                [key]: Number(event.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
-              </div>
-            )}
 
-            <div className="global-actions">
-              <button className="btn btn-primary" onClick={downloadAll}>Download all (.zip)</button>
-              <button className="btn btn-danger" onClick={clearAll}>Clear all</button>
+                <div className="below-editor-row">
+                  <section className="below-editor-card resize-card">
+                    <div className="panel-heading">
+                      <div>
+                        <h3>Dimensions</h3>
+                      </div>
+
+                      <label className="switch">
+                        <input
+                          type="checkbox"
+                          checked={activeImage.resizeEnabled}
+                          onChange={(event) =>
+                            updateActiveImage({
+                              resizeEnabled: event.target.checked,
+                            })
+                          }
+                        />
+                        <span />
+                      </label>
+                    </div>
+
+                    <div className="resize-subtitle">
+                      Keep proportions locked while changing the output size.
+                    </div>
+
+                    {activeImage.resizeEnabled ? (
+                      <>
+                        <div className="resize-grid resize-grid-large">
+                          <label>
+                            <span>Width</span>
+
+                            <input
+                              type="number"
+                              min="10"
+                              step="10"
+                              value={activeImage.targetWidth}
+                              onChange={handleWidthChange}
+                            />
+                          </label>
+
+                          <button
+                            type="button"
+                            className={`lock-btn ${activeImage.lockAspect ? "locked" : ""
+                              }`}
+                            onClick={() =>
+                              updateActiveImage({
+                                lockAspect: !activeImage.lockAspect,
+                              })
+                            }
+                            aria-label={
+                              activeImage.lockAspect
+                                ? "Unlock aspect ratio"
+                                : "Lock aspect ratio"
+                            }
+                          >
+                            {activeImage.lockAspect ? (
+                              <Lock size={15} strokeWidth={2} />
+                            ) : (
+                              <Unlock size={15} strokeWidth={2} />
+                            )}
+                          </button>
+
+                          <label>
+                            <span>Height</span>
+
+                            <input
+                              type="number"
+                              min="10"
+                              step="10"
+                              value={activeImage.targetHeight}
+                              onChange={handleHeightChange}
+                            />
+                          </label>
+                        </div>
+
+                        {/* Small unique dimension info */}
+                        <div className="dimension-info">
+                          <div className="dimension-info-item">
+                            <span>Aspect ratio</span>
+                            <strong>
+                              {activeImage.targetWidth && activeImage.targetHeight
+                                ? (
+                                  activeImage.targetWidth /
+                                  activeImage.targetHeight
+                                ).toFixed(2)
+                                : "—"}
+                            </strong>
+                          </div>
+
+                          <div className="dimension-info-item">
+                            <span>Resize mode</span>
+                            <strong>
+                              {activeImage.lockAspect
+                                ? "Locked"
+                                : "Free"}
+                            </strong>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="resize-disabled-state">
+                        <span>Original dimensions</span>
+
+                        <strong>
+                          {activeImage.img.naturalWidth} ×{" "}
+                          {activeImage.img.naturalHeight}px
+                        </strong>
+                      </div>
+                    )}
+                  </section>
+
+                  <section className="below-editor-card metrics-card">
+                    <div className="panel-heading">
+                      <div>
+                        <h3>File metrics</h3>
+                      </div>
+
+                      <span
+                        className={`metric-pill ${savingsPct >= 0 ? "good-bg" : "bad-bg"
+                          }`}
+                      >
+                        {compressedSize
+                          ? savingsPct >= 0
+                            ? `${savingsPct.toFixed(0)}% smaller`
+                            : `${Math.abs(savingsPct).toFixed(0)}% larger`
+                          : "Processing"}
+                      </span>
+                    </div>
+
+                    <div className="metrics-grid metrics-grid-large">
+                      <div>
+                        <span className="metric-label">
+                          <FolderOpen size={11} />
+                          Original
+                        </span>
+                        <strong>{formatBytes(originalSize)}</strong>
+                      </div>
+
+                      <div>
+                        <span className="metric-label">
+                          <Download size={11} />
+                          Optimized
+                        </span>
+                        <strong>
+                          {compressedSize ? formatBytes(compressedSize) : "—"}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span className="metric-label">
+                          <Zap size={11} />
+                          Change
+                        </span>
+                        <strong
+                          className={savingsPct >= 0 ? "good" : "bad"}
+                        >
+                          {compressedSize
+                            ? `${savingsPct >= 0 ? "−" : "+"}${Math.abs(
+                              savingsPct
+                            ).toFixed(0)}%`
+                            : "—"}
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div className="size-bar size-bar-large">
+                      <div style={{ width: `${sizeRatio}%` }} />
+                    </div>
+
+                    <div className="compression-summary">
+                      <div className="summary-icon">
+                        {compressedSize ? <Check size={14} /> : <Zap size={14} />}
+                      </div>
+
+                      <div className="summary-copy">
+                        <strong>
+                          {compressedSize
+                            ? savingsPct >= 0
+                              ? "Compression successful"
+                              : "Output is larger"
+                            : "Optimizing image"}
+                        </strong>
+
+                        <span>
+                          {compressedSize
+                            ? savingsPct >= 0
+                              ? `Saved ${formatBytes(
+                                Math.max(0, originalSize - compressedSize)
+                              )} of storage`
+                              : `Added ${formatBytes(
+                                Math.max(0, compressedSize - originalSize)
+                              )} to the output`
+                            : "Calculating the optimized file size..."}
+                        </span>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="below-editor-card actions-card">
+                    <div className="panel-heading">
+                      <div>
+                        <h3>Actions</h3>
+                      </div>
+
+                      <span className="panel-meta">
+                        {compressedSize ? "Ready to export" : "Processing"}
+                      </span>
+                    </div>
+
+                    <div className="actions-card-content">
+
+                      <div className="export-status">
+                        <div className="export-status-icon">
+                          {compressedSize ? (
+                            <Check size={15} strokeWidth={2.2} />
+                          ) : (
+                            <Zap size={15} strokeWidth={2} />
+                          )}
+                        </div>
+
+                        <div className="export-status-copy">
+                          <strong>
+                            {compressedSize
+                              ? "Export ready"
+                              : "Preparing output"}
+                          </strong>
+
+                          <span>
+                            {compressedSize
+                              ? images.length > 1
+                                ? `${images.length} images available in your workspace`
+                                : "Your optimized image is ready to save"
+                              : "Finalizing your optimized image..."}
+                          </span>
+                        </div>
+
+
+                      </div>
+
+                      <button
+                        type="button"
+                        className="btn btn-dark wide"
+                        onClick={() => download(activeImage)}
+                        disabled={!compressedSize}
+                      >
+                        <Download size={17} strokeWidth={2} />
+                        Download image
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn btn-soft wide"
+                        onClick={applyAll}
+                        disabled={images.length < 2}
+                      >
+                        <Check size={16} strokeWidth={2} />
+                        Apply to all
+                      </button>
+
+                      <div className="action-note">
+                        {images.length > 1
+                          ? "Apply the current settings to every image in your library."
+                          : "Add another image to enable batch settings."}
+                      </div>
+
+                    </div>
+                  </section>
+                </div>
+
+              </section>
+            </>
+          )}
+
+          <div className="batch-bar">
+            <div className="batch-stat">
+              <span>Batch result</span>
+              <strong>
+                {formatBytes(totalOriginal)} → {formatBytes(totalCompressed)}
+              </strong>
+              <em className={totalSavings >= 0 ? "good" : "bad"}>
+                {totalSavings >= 0
+                  ? `${totalSavings.toFixed(0)}% saved`
+                  : `${Math.abs(totalSavings).toFixed(0)}% larger`}
+              </em>
             </div>
-          </>
-        )}
 
-        <footer className="footer">
-          <div className="footer-container">
-            <p className="footer-privacy">
-              <svg className="privacy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-              </svg>
-              <strong>100% Privacy</strong> All processing happens on-device via <strong>Canvas API.</strong> No files are ever uploaded.
-            </p>
+            <div className="batch-actions">
+              <button
+                type="button"
+                className="btn btn-soft"
+                onClick={copyShareLink}
+              >
+                <Copy size={15} strokeWidth={2} />
+                {copied ? "Copied" : "Copy tool link"}
+              </button>
 
-            <div className="footer-share">
-              <span className="share-label">Share this tool</span>
-              <div className="share-buttons">
-                <a
-                  href="https://twitter.com/intent/tweet?text=Check%20out%20this%20awesome%20tool!"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="share-btn twitter"
-                  aria-label="Share on X"
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                  </svg>
-                </a>
-
-                <a
-                  href="https://www.linkedin.com/sharing/share-offsite/?url=YOUR_URL"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="share-btn linkedin"
-                  aria-label="Share on LinkedIn"
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z" />
-                  </svg>
-                </a>
-
-                <a
-                  href="https://api.whatsapp.com/send?text=Check%20out%20this%20tool!"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="share-btn whatsapp"
-                  aria-label="Share on WhatsApp"
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.32a8.188 8.188 0 0 1-1.26-4.38c.01-4.54 3.71-8.24 8.26-8.24" />
-                  </svg>
-                </a>
-              </div>
-            </div>
-
-            <div className="footer-credits">
-              <span>Crafted with <span className="heart">♥</span> by </span>
-              <a href="https://github.com/TEJASS-PATELL" target="_blank" rel="noopener noreferrer" className="creator-link">
-                Tejas Patel
-              </a>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={clearAll}
+              >
+                <Trash2 size={15} strokeWidth={2} />
+                Clear workspace
+              </button>
             </div>
           </div>
-        </footer>
-      </div>
-    </div>
+        </section>
+      )}
+
+      <footer className="footer page-width">
+        <div className="footer-card">
+          <div className="footer-main">
+            <div className="footer-brand">
+              <div className="brand-mark small">
+                <Layers3 size={20} strokeWidth={2.1} />
+              </div>
+
+              <div>
+                <strong>Darkroom</strong>
+                <span>Built for fast, private image optimization.</span>
+              </div>
+            </div>
+
+            <div className="footer-note">
+              <ShieldCheck size={16} strokeWidth={2} />
+              <span>
+                <strong>Your files never leave your browser.</strong> All editing
+                uses the Canvas API on your device.
+              </span>
+            </div>
+          </div>
+
+          <div className="footer-bottom">
+            <span>JPEG · PNG · WebP · Batch ZIP</span>
+            <span>Ctrl + O import · Ctrl + R reset</span>
+            <span>
+              Crafted with ♥ by{" "}
+              <a
+                href="https://github.com/TEJASS-PATELL"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Tejas Patel
+              </a>
+            </span>
+          </div>
+        </div>
+      </footer>
+    </main>
   );
 }
