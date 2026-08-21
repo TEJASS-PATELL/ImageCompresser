@@ -696,9 +696,6 @@ export default function Darkroom() {
           <div className="workspace-toolbar">
             <div>
               <div className="section-kicker">Your workspace</div>
-              {/* <h2>
-                {images.length} {images.length === 1 ? "image" : "images"} ready to optimize
-              </h2> */}
             </div>
 
             <div className="toolbar-actions">

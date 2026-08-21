@@ -2167,6 +2167,7 @@ kbd {
 
 .footer {
   padding: 0 0 28px;
+  
 }
 
 .footer-card {
@@ -2190,7 +2191,7 @@ kbd {
 
 .footer-brand strong {
   color: #000000;
-  font-size: 15px;
+  font-size: 15.5px;
   line-height: 1.2;
   font-weight: 800;
 }
@@ -2198,7 +2199,7 @@ kbd {
 .footer-brand span {
   margin-top: 3px;
   color: #686d76;
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.35;
 }
 
@@ -2207,7 +2208,7 @@ kbd {
   align-items: center;
   gap: 7px;
   color: #7d828b;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.4;
 }
 
@@ -2227,7 +2228,7 @@ kbd {
   padding: 11px 18px;
   border-top: 1px solid var(--line);
   color: #999da4;
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.3;
 }
 
