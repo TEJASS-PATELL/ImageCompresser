@@ -429,7 +429,7 @@ input:focus-visible {
   gap: 16px;
   margin-top: 20px;
   color: #828790;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.4;
   font-weight: 600;
 }
@@ -716,7 +716,7 @@ kbd {
   justify-content: space-between;
   padding: 2px 8px 10px;
   color: #7e838c;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.2;
   font-weight: 700;
 }
