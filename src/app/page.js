@@ -910,15 +910,6 @@ export default function Darkroom() {
                   </div>
 
                   <div className="control-section quality-section">
-                    <div className="control-title-row">
-                      <span>Quality</span>
-                      <strong>
-                        {activeImage.format === "png"
-                          ? "Lossless"
-                          : `${activeImage.quality}%`}
-                      </strong>
-                    </div>
-
                     <div className="quality-meter">
                       <div className="quality-meter-top">
                         <div>

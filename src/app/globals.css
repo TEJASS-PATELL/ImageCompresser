@@ -1257,7 +1257,7 @@ kbd {
   display: block;
   margin-bottom: 5px;
   color: #959aa3;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -1280,7 +1280,7 @@ kbd {
   border-radius: 999px;
   color: var(--accent);
   background: #f8f5ff;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1;
   font-weight: 800;
 }
@@ -1402,7 +1402,7 @@ kbd {
   justify-content: space-between;
   margin-top: 6px;
   color: #a1a5ad;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1;
   font-weight: 700;
 }
@@ -1421,7 +1421,7 @@ kbd {
   border-radius: 9px;
   color: #8f939b;
   background: #fafafe;
-  font-size: 11px;
+  font-size: 11.5px;
   line-height: 1.3;
   font-weight: 600;
 }
@@ -1485,7 +1485,7 @@ kbd {
 }
 
 .preset-grid strong {
-  font-size: 12px;
+  font-size: 12.5px;
   line-height: 1.2;
   font-weight: 800;
 }
@@ -1493,7 +1493,7 @@ kbd {
 .preset-grid small {
   margin-top: 3px;
   color: #999ea6;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.2;
 }
 
@@ -1595,15 +1595,15 @@ kbd {
 
 .panel-heading h3 {
   margin: 0;
-  color: #18191d;
-  font-size: 16px;
+  color: #000000;
+  font-size: 16.5px;
   line-height: 1.2;
 }
 
 .panel-meta {
   flex: 0 0 auto;
   color: #969ba3;
-  font-size: 11px;
+  font-size: 11.45px;
   line-height: 1.3;
   font-weight: 700;
 }
@@ -1758,7 +1758,7 @@ kbd {
 .resize-subtitle {
   padding: 15px 18px 0;
   color: #8f949c;
-  font-size: 12px;
+  font-size: 12.5px;
   line-height: 1.55;
 }
 
@@ -1958,7 +1958,7 @@ kbd {
 .metrics-grid-large span {
   margin-bottom: 5px;
   color: #92969e;
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1;
   font-weight: 800;
   letter-spacing: 0.07em;
@@ -1968,6 +1968,7 @@ kbd {
 .metrics-grid-large strong {
   color: #1d1f24;
   font-size: 13px;
+  margin-top: 1px;
   line-height: 1.2;
   font-weight: 800;
   white-space: nowrap;
@@ -2057,8 +2058,8 @@ kbd {
 }
 
 .summary-icon {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   flex: 0 0 28px;
   display: grid;
   place-items: center;
@@ -2078,7 +2079,7 @@ kbd {
 
 .summary-copy strong {
   color: #30333a;
-  font-size: 12px;
+  font-size: 12.25px;
   line-height: 1.2;
   font-weight: 800;
 }
@@ -2105,9 +2106,9 @@ kbd {
   min-height: 28px;
   display: flex;
   align-items: center;
-  margin-left: 5px;
+  margin-left: 6px;
   color: #969ba3;
-  font-size: 11px;
+  font-size: 11.5px;
   line-height: 1.25;
 }
 
@@ -2594,7 +2595,7 @@ kbd {
 .export-status-copy strong {
   color: #30333a;
 
-  font-size: 12px;
+  font-size: 12.25px;
   line-height: 1.2;
   font-weight: 800;
 }
@@ -2602,7 +2603,7 @@ kbd {
 .export-status-copy span {
   color: #969ba3;
 
-  font-size: 10px;
+  font-size: 10.25px;
   line-height: 1.25;
   font-weight: 600;
 }
