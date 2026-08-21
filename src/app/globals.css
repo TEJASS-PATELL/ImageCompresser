@@ -395,18 +395,13 @@ input:focus-visible {
 
 .hero h1 {
   max-width: 820px;
-
   margin: 16px 0 16px 0;
-
   color: #000000;
-
   font-family: "Manrope", sans-serif;
   font-size: clamp(48px, 6.3vw, 76px);
   line-height: 0.98;
   font-weight: 800;
-
   letter-spacing: -0.068em;
-
   text-wrap: balance;
 }
 
@@ -429,6 +424,7 @@ input:focus-visible {
   gap: 16px;
   margin-top: 20px;
   color: #828790;
+  margin-left: 2px;
   font-size: 13px;
   line-height: 1.4;
   font-weight: 600;
@@ -967,17 +963,15 @@ kbd {
     0 0 20px rgba(0, 0, 0, 0.14);
 }
 
-.compare-handle span {
+.compare-handle .moving-icon {
   width: 36px;
   height: 36px;
   display: grid;
   place-items: center;
+  margin-left: -17px;
   border-radius: 50%;
-  color: #23252a;
+  color: #000000;
   background: #fff;
-  box-shadow:
-    0 7px 24px rgba(0, 0, 0, 0.15);
-  font-size: 16px;
   font-weight: 900;
 }
 
@@ -1175,7 +1169,7 @@ kbd {
 }
 
 .control-section {
-  padding: 15px 17px;
+  padding: 14px 17px;
   border-top: 1px solid var(--line);
 }
 
@@ -2639,3 +2633,362 @@ kbd {
   }
 }
 
+
+.aspect-ratio-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.aspect-ratio-grid button {
+  min-height: 34px;
+  padding: 0 6px;
+  border: 1px solid rgba(26, 24, 20, 0.08);
+  border-radius: 9px;
+  background: #fff;
+  color: #6b6860;
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.aspect-ratio-grid button:hover {
+  transform: translateY(-1px);
+  color: #1a1814;
+  border-color: rgba(26, 24, 20, 0.16);
+}
+
+.aspect-ratio-grid button.selected {
+  background: #1a1814;
+  color: #fff;
+  border-color: #1a1814;
+}
+
+/* =========================================================
+   PREVIEW / IMAGE COMPARISON
+   Outer preview stays fixed.
+   Aspect ratio changes only inside it.
+   ========================================================= */
+
+.compare-wrap {
+  --pos: 50%;
+
+  position: relative;
+
+  width: calc(100% - 30px);
+  height: 540px;
+  min-height: 540px;
+
+  margin: 15px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  overflow: hidden;
+
+  border-radius: 16px;
+  background: #eef0f3;
+
+  user-select: none;
+  cursor: col-resize;
+  isolation: isolate;
+}
+
+/* Inner frame is the ONLY thing whose aspect ratio changes */
+.compare-ratio-frame {
+  position: relative;
+
+  width: auto;
+  height: min(100%, 100%);
+
+  max-width: 100%;
+  max-height: 100%;
+
+  flex: 0 0 auto;
+
+  overflow: hidden;
+
+  border-radius: 12px;
+
+  background: #eef0f3;
+
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.035),
+    0 10px 30px rgba(0, 0, 0, 0.055);
+
+  isolation: isolate;
+}
+
+/*
+  For very wide ratios such as 16:9,
+  the frame uses the available width.
+*/
+.compare-ratio-frame[style*="16 / 9"],
+.compare-ratio-frame[style*="3 / 2"],
+.compare-ratio-frame[style*="4 / 3"] {
+  width: min(100%, calc(540px * 1.7777778));
+}
+
+/* 16:9 */
+.compare-wrap:has(
+  .compare-ratio-frame[style*="16 / 9"]
+) .compare-ratio-frame {
+  width: min(100%, 960px);
+}
+
+/* 4:3 */
+.compare-wrap:has(
+  .compare-ratio-frame[style*="4 / 3"]
+) .compare-ratio-frame {
+  width: min(100%, 720px);
+}
+
+/* 3:2 */
+.compare-wrap:has(
+  .compare-ratio-frame[style*="3 / 2"]
+) .compare-ratio-frame {
+  width: min(100%, 810px);
+}
+
+/* 1:1 */
+.compare-wrap:has(
+  .compare-ratio-frame[style*="1 / 1"]
+) .compare-ratio-frame {
+  width: min(540px, 100%);
+}
+
+/* Original / any other ratio */
+.compare-ratio-frame {
+  width: min(
+    100%,
+    calc(
+      540px *
+      var(--frame-ratio-width, 1)
+    )
+  );
+}
+
+/* Images stay inside the selected ratio frame */
+.compare-ratio-frame .img-before,
+.compare-ratio-frame .img-after {
+  position: absolute;
+
+  inset: 0;
+
+  width: 100%;
+  height: 100%;
+
+  max-width: none;
+  max-height: none;
+
+  display: block;
+
+  object-fit: cover;
+  object-position: center;
+
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Original image */
+.compare-ratio-frame .img-before {
+  z-index: 1;
+}
+
+/* Optimized image */
+.compare-ratio-frame .img-after {
+  z-index: 2;
+
+  clip-path:
+    inset(
+      0
+      calc(100% - var(--pos))
+      0
+      0
+    );
+}
+
+/* Divider */
+.compare-ratio-frame .compare-handle {
+  position: absolute;
+
+  top: 0;
+  bottom: 0;
+  left: var(--pos);
+
+  z-index: 6;
+
+  width: 2px;
+
+  transform: translateX(-1px);
+
+  background: #ffffff;
+
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 0 20px rgba(0, 0, 0, 0.14);
+
+  pointer-events: none;
+}
+
+/* Divider circle */
+.compare-ratio-frame .compare-handle .moving-icon {
+  position: absolute;
+
+  top: 50%;
+  left: 50%;
+
+  width: 36px;
+  height: 36px;
+
+  display: grid;
+  place-items: center;
+
+  margin: 0;
+
+  transform: translate(-50%, -50%);
+
+  border-radius: 50%;
+
+  color: #000000;
+  background: #ffffff;
+
+  box-shadow:
+    0 3px 10px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(0, 0, 0, 0.08);
+
+  pointer-events: none;
+}
+
+/* Preview labels */
+.compare-ratio-frame .preview-tag {
+  position: absolute;
+
+  top: 13px;
+
+  z-index: 7;
+
+  padding: 8px 10px;
+
+  border-radius: 8px;
+
+  color: #ffffff;
+  background: rgba(18, 19, 23, 0.64);
+
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 800;
+
+  backdrop-filter: blur(8px);
+
+  pointer-events: none;
+}
+
+.compare-ratio-frame .preview-tag.before {
+  left: 13px;
+}
+
+.compare-ratio-frame .preview-tag.after {
+  right: 13px;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   Outer preview still keeps a fixed height.
+   Only the inner ratio frame changes.
+   ========================================================= */
+
+@media (max-width: 1100px) {
+  .compare-wrap {
+    height: 460px;
+    min-height: 460px;
+  }
+
+  .compare-wrap:has(
+    .compare-ratio-frame[style*="16 / 9"]
+  ) .compare-ratio-frame {
+    width: min(100%, 817px);
+  }
+
+  .compare-wrap:has(
+    .compare-ratio-frame[style*="4 / 3"]
+  ) .compare-ratio-frame {
+    width: min(100%, 613px);
+  }
+
+  .compare-wrap:has(
+    .compare-ratio-frame[style*="3 / 2"]
+  ) .compare-ratio-frame {
+    width: min(100%, 690px);
+  }
+
+  .compare-wrap:has(
+    .compare-ratio-frame[style*="1 / 1"]
+  ) .compare-ratio-frame {
+    width: min(460px, 100%);
+  }
+}
+
+@media (max-width: 760px) {
+  .compare-wrap {
+    height: 330px;
+    min-height: 330px;
+
+    width: calc(100% - 20px);
+    margin: 10px;
+  }
+
+  .compare-wrap:has(
+    .compare-ratio-frame[style*="16 / 9"]
+  ) .compare-ratio-frame {
+    width: min(100%, 586px);
+  }
+
+  .compare-wrap:has(
+    .compare-ratio-frame[style*="4 / 3"]
+  ) .compare-ratio-frame {
+    width: min(100%, 440px);
+  }
+
+  .compare-wrap:has(
+    .compare-ratio-frame[style*="3 / 2"]
+  ) .compare-ratio-frame {
+    width: min(100%, 495px);
+  }
+
+  .compare-wrap:has(
+    .compare-ratio-frame[style*="1 / 1"]
+  ) .compare-ratio-frame {
+    width: min(330px, 100%);
+  }
+
+  .compare-ratio-frame {
+    border-radius: 11px;
+  }
+
+  .compare-ratio-frame .compare-handle .moving-icon {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+@media (max-width: 480px) {
+  .compare-wrap {
+    height: 280px;
+    min-height: 280px;
+  }
+
+  .compare-wrap:has(
+    .compare-ratio-frame[style*="1 / 1"]
+  ) .compare-ratio-frame {
+    width: min(280px, 100%);
+  }
+}
