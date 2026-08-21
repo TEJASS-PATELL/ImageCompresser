@@ -926,6 +926,15 @@ kbd {
   background: #eef0f3;
   user-select: none;
   cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.compare-ratio-frame {
+  position: relative;
+  width: 100%;
+  max-height: 100%;
 }
 
 .img-before,
@@ -939,13 +948,35 @@ kbd {
 }
 
 .img-after {
-  clip-path:
-    inset(
-      0
-      calc(100% - var(--pos))
-      0
-      0
-    );
+  clip-path: inset(0 calc(100% - var(--pos)) 0 0);
+}
+
+.preview-tag {
+  position: absolute;
+  top: 16px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  border-radius: 10px;
+  background: black;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #ffffff;
+  pointer-events: none;
+  z-index: 5;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.preview-tag.before {
+  left: 20px;
+}
+
+.preview-tag.after {
+  right: 20px;
+  background: var(--accent); /* Accent Blue highlight for Optimized */
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 .compare-handle {
@@ -961,40 +992,55 @@ kbd {
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.08),
     0 0 20px rgba(0, 0, 0, 0.14);
+  cursor: ew-resize;
+  z-index: 10;
 }
 
 .compare-handle .moving-icon {
-  width: 36px;
-  height: 36px;
+  position: absolute;
+
+  top: 50%;
+  left: 50%;
+
+  width: 28px;
+  height: 28px;
+
   display: grid;
   place-items: center;
-  margin-left: -17px;
+
+  margin: 0;
+
+  transform: translate(-50%, -50%);
+
   border-radius: 50%;
+
   color: #000000;
-  background: #fff;
-  font-weight: 900;
+  background: #ffffff;
+
+  box-shadow:
+    0 3px 10px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(0, 0, 0, 0.08);
+
+  pointer-events: none;
 }
 
-.preview-tag {
-  position: absolute;
-  top: 13px;
-  z-index: 2;
-  padding: 8px 10px;
-  border-radius: 8px;
-  color: #fff;
-  background: rgba(18, 19, 23, 0.64);
-  font-size: 11px;
-  line-height: 1;
-  font-weight: 800;
-  backdrop-filter: blur(8px);
+/* Inner Blue Circle */
+.compare-handle .moving-icon::before {
+  content: '';
+  width: 14px;
+  height: 14px;
+  background: var(--accent); /* Modern Blue */
+  border-radius: 50%;
+  transition: transform 0.15s ease, background 0.15s ease;
 }
 
-.preview-tag.before {
-  left: 13px;
+.compare-handle:hover .moving-icon {
+  transform: scale(1.1);
 }
 
-.preview-tag.after {
-  right: 13px;
+.compare-handle:hover .moving-icon::before {
+  background: var(--accent);
+  transform: scale(1.15);
 }
 
 .preview-footer {
@@ -2703,25 +2749,16 @@ kbd {
 /* Inner frame is the ONLY thing whose aspect ratio changes */
 .compare-ratio-frame {
   position: relative;
-
   width: auto;
   height: min(100%, 100%);
-
   max-width: 100%;
   max-height: 100%;
-
   flex: 0 0 auto;
-
   overflow: hidden;
-
-  border-radius: 12px;
-
   background: #eef0f3;
-
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.035),
     0 10px 30px rgba(0, 0, 0, 0.055);
-
   isolation: isolate;
 }
 
@@ -2834,35 +2871,6 @@ kbd {
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.08),
     0 0 20px rgba(0, 0, 0, 0.14);
-
-  pointer-events: none;
-}
-
-/* Divider circle */
-.compare-ratio-frame .compare-handle .moving-icon {
-  position: absolute;
-
-  top: 50%;
-  left: 50%;
-
-  width: 36px;
-  height: 36px;
-
-  display: grid;
-  place-items: center;
-
-  margin: 0;
-
-  transform: translate(-50%, -50%);
-
-  border-radius: 50%;
-
-  color: #000000;
-  background: #ffffff;
-
-  box-shadow:
-    0 3px 10px rgba(0, 0, 0, 0.15),
-    0 0 0 1px rgba(0, 0, 0, 0.08);
 
   pointer-events: none;
 }

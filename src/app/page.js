@@ -1474,21 +1474,12 @@ export default function Darkroom() {
                       />
 
                       <div className="compare-handle">
-                        <MoveHorizontal
-                          className="moving-icon"
-                          size={10}
-                          strokeWidth={2}
-                        />
+                        <div className="moving-icon" />
                       </div>
-
-                      <span className="preview-tag before">
-                        Original
-                      </span>
-
-                      <span className="preview-tag after">
-                        Optimized
-                      </span>
                     </div>
+
+                    <span className="preview-tag before">Original</span>
+                    <span className="preview-tag after">Optimized</span>
                   </div>
 
                   <div className="preview-footer">
