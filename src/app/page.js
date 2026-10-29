@@ -2353,16 +2353,6 @@ export default function Darkroom() {
 
           <button
             type="button"
-            className="btn btn-soft btn-sm"
-            onClick={copyShareLink}
-            title="Copy link to Darkroom"
-          >
-            <Copy size={14} strokeWidth={2} />
-            <span>{copied ? "Copied" : "Share tool"}</span>
-          </button>
-
-          <button
-            type="button"
             className="theme-toggle"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             aria-label={
@@ -2377,7 +2367,7 @@ export default function Darkroom() {
       </header>
 
       {/* HERO (Compact when workspace has images) */}
-            <section className="hero page-width">
+      <section className="hero page-width">
         <div className="hero-copy">
           <div className="eyebrow">
             <span className="eyebrow-dot" />
@@ -2779,13 +2769,6 @@ export default function Darkroom() {
                           : "Calculating…"}
                       </strong>
                     </div>
-                  </div>
-
-                  <div
-                    className="size-bar"
-                    style={{ "--bar": `${sizeRatio}%` }}
-                  >
-                    <div />
                   </div>
                 </div>
               </section>
